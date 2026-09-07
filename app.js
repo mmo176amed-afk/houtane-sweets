@@ -82,24 +82,49 @@ function logout() {
   showView('view-login');
 }
 
-// تحميل المنتجات والزبائن للذاكرة المؤقتة من قاعدة بيانات Supabase
+// تحميل المنتجات (بما فيها منتجات التكلفة) والزبائن للذاكرة المؤقتة
 async function preloadData() {
   showLoader(true);
   try {
+    // 1. جلب المنتجات المسجلة في جدول products
     const { data: prods, error: pErr } = await db.from('products').select('*').order('id', { ascending: true });
     if (pErr) throw pErr;
 
-    const { data: custs, error: cErr } = await db.from('customers').select('*').order('id', { ascending: true });
-    if (cErr) throw cErr;
-
-    // توحيد بنية البيانات لتطابق الشيفرة البرمجية
-    productsCache = (prods || []).map(p => ({
+    // 2. جلب كافة أسماء المنتجات الموجودة في جدول تكلفة الإنتاج لضمان شموليتها
+    const { data: costProds } = await db.from('production_costs').select('product_name');
+    
+    // توحيد المنتجات
+    const mainList = (prods || []).map(p => ({
       id: p.id,
-      name: p.name,
+      name: p.name.trim(),
       currentStock: Number(p.current_stock) || 0,
       wholesalePrice: Number(p.wholesale_price) || 0,
       retailPrice: Number(p.retail_price) || 0
     }));
+
+    // دمج أسماء المنتجات من جدول التكلفة إذا لم تكن موجودة في جدول products
+    if (costProds && costProds.length > 0) {
+      const existingNames = new Set(mainList.map(p => p.name.toLowerCase()));
+      costProds.forEach(cp => {
+        const cName = (cp.product_name || '').trim();
+        if (cName && !existingNames.has(cName.toLowerCase())) {
+          existingNames.add(cName.toLowerCase());
+          mainList.push({
+            id: null,
+            name: cName,
+            currentStock: 0,
+            wholesalePrice: 0,
+            retailPrice: 0
+          });
+        }
+      });
+    }
+
+    productsCache = mainList;
+
+    // 3. جلب الزبائن
+    const { data: custs, error: cErr } = await db.from('customers').select('*').order('id', { ascending: true });
+    if (cErr) throw cErr;
 
     customersCache = (custs || []).map(c => ({
       id: c.id,
@@ -107,6 +132,14 @@ async function preloadData() {
       oldCredit: Number(c.old_credit) || 0,
       lastInvoiceSeq: Number(c.last_invoice_seq) || 0
     }));
+
+    populateProductDatalist();
+  } catch (e) {
+    console.error("Error preloading data:", e);
+  } finally {
+    showLoader(false);
+  }
+}
 
     populateProductDatalist();
   } catch (e) {
@@ -640,13 +673,96 @@ function addIngredientRow() {
   container.appendChild(row);
 }
 
-// تجميع البيانات وحساب التكلفة وإدراج المنتج في كافة جداول SQL والمخزن
+// تجميع البيانات وحساب التكلفة وإدراج المنتج مباشرة
 async function submitProductionCost() {
   const pName = document.getElementById('cost-product-name').value.trim();
   if (!pName) {
     showAlert("يرجى كتابة اسم المنتج أولاً!");
     return;
   }
+
+  const rows = document.querySelectorAll('#cost-ingredients-container .cost-row');
+  const records = [];
+  let totalIngredientsCost = 0;
+
+  rows.forEach(r => {
+    const name = r.querySelector('.ing-name').value.trim();
+    const totalQty = parseFloat(r.querySelector('.ing-total').value) || 0;
+    const remQty = parseFloat(r.querySelector('.ing-rem').value) || 0;
+    const unitPrice = parseFloat(r.querySelector('.ing-price').value) || 0;
+
+    if (name) {
+      const consumedQty = Math.max(0, totalQty - remQty);
+      totalIngredientsCost += (consumedQty * unitPrice);
+
+      records.push({
+        product_name: pName,
+        ingredient_name: name,
+        total_qty: totalQty,
+        rem_qty: remQty,
+        unit_price: unitPrice
+      });
+    }
+  });
+
+  const pkgTotal = parseFloat(document.getElementById('pkg-total').value) || 0;
+  const pkgRem = parseFloat(document.getElementById('pkg-rem').value) || 0;
+  const pkgPrice = parseFloat(document.getElementById('pkg-price').value) || 0;
+
+  const producedBoxes = Math.max(0, pkgTotal - pkgRem);
+  const packagingCost = producedBoxes * pkgPrice;
+
+  if (pkgTotal > 0) {
+    records.push({
+      product_name: pName,
+      ingredient_name: 'التعليب',
+      total_qty: pkgTotal,
+      rem_qty: pkgRem,
+      unit_price: pkgPrice
+    });
+  }
+
+  if (records.length === 0) {
+    showAlert("يرجى إدخال المكونات أولاً!");
+    return;
+  }
+
+  const grandTotalCost = totalIngredientsCost + packagingCost;
+  const unitCostPerBox = producedBoxes > 0 ? (grandTotalCost / producedBoxes) : 0;
+
+  showLoader(true);
+  try {
+    // 1. حفظ في جدول production_costs
+    const { error: costErr } = await db.from('production_costs').insert(records);
+    if (costErr) throw costErr;
+
+    // 2. إدراج أو تحديث في جدول products
+    const existing = productsCache.find(p => p.name.toLowerCase() === pName.toLowerCase() && p.id !== null);
+
+    if (!existing) {
+      await db.from('products').insert([{
+        name: pName,
+        current_stock: Math.round(producedBoxes),
+        wholesale_price: Math.round(unitCostPerBox),
+        retail_price: Math.round(unitCostPerBox)
+      }]);
+    } else {
+      await db.from('products').update({
+        current_stock: Number(existing.currentStock) + Math.round(producedBoxes)
+      }).eq('id', existing.id);
+    }
+
+    // 3. إعادة تحميل البيانات وتحديث الواجهة
+    await preloadData();
+
+    showAlert(`تم حفظ تكلفة الإنتاج وإدراج "${pName}" في القوائم والمخزن بنجاح!`);
+    showView('view-dashboard');
+  } catch (err) {
+    showAlert("حدث خطأ أثناء الحفظ: " + err.message);
+  } finally {
+    showLoader(false);
+  }
+}
 
   // 1. تجميع المكونات وحساب تكلفة الاستهلاك
   const rows = document.querySelectorAll('#cost-ingredients-container .cost-row');
