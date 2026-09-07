@@ -1,40 +1,27 @@
-/**
-// ==========================================
+// =========================================================================
 // 1. إعداد الاتصال بقاعدة بيانات Supabase
-// ==========================================
+// =========================================================================
 const SUPABASE_URL = 'https://ntvmrdwwnjqunsagritz.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_DQ6yB5s9oLL_jxiWZKB9gQ_Pa0uwIRW'; // المفتاح العام الكامل
+const SUPABASE_KEY = 'sb_publishable_DQ6yB5s9oLL_jxiWZKB9gQ_Pa0uwIRW';
 
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// التأكد من جاهزية الاتصال
 console.log("Supabase Client Connected Successfully!");
- 
- * =========================================================================
- * نظام إدارة ورشة الحلويات والمخزن - ملف المعالجة البرمجية الكامل (app.js)
- * =========================================================================
- */
 
-// الرابط الخاص بتطبيق Google Apps Script المنشور
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzpODYGke1q7kT0ddetFt3nVBLQwbQyKehzOjk6JykK4m5PttecHpl3bn6hBqbn3bI/exec";
-
-// متغيرات الذاكرة المؤقتة للبيانات والمستخدم الحالي
+// متغيرات الذاكرة المؤقتة
 let currentUser = null;
 let productsCache = [];
 let customersCache = [];
 
 // =========================================================================
-// [1] دوال عامة: مؤشر التحميل، التنبيهات، والتنقل بين الشاشات
+// [1] دوال عامة: مؤشر التحميل والتنقل
 // =========================================================================
-
-// إظهار أو إخفاء مؤشر التحميل (Spinner)
 function showLoader(show) {
   const loader = document.getElementById('loader');
   if (loader) loader.style.display = show ? 'flex' : 'none';
 }
 
-// التبديل بين شاشات التطبيق
 function showView(viewId) {
   document.querySelectorAll('.view-section').forEach(el => el.classList.remove('view-active'));
   const target = document.getElementById(viewId);
@@ -45,61 +32,29 @@ function showView(viewId) {
   }
 }
 
-// دالة الرجوع المباشر للوحة التحكم الرئيسية
 function showDashboard() {
   showView('view-dashboard');
 }
 
-// عرض رسائل التنبيه
 function showAlert(message) {
   alert(message);
 }
 
-// دالة موحدة للتواصل مع Google Apps Script عبر GET
-async function apiCall(action, params = {}) {
-  showLoader(true);
-  try {
-    const url = new URL(SCRIPT_URL);
-    url.searchParams.append('action', action);
-    Object.keys(params).forEach(key => {
-      const val = typeof params[key] === 'object' ? JSON.stringify(params[key]) : params[key];
-      url.searchParams.append(key, val);
-    });
-
-    const response = await fetch(url);
-    const data = await response.json();
-    showLoader(false);
-    return data;
-  } catch (err) {
-    showLoader(false);
-    console.error("API Error:", err);
-    showAlert("خطأ أثناء الاتصال بقاعدة البيانات!");
-    return null;
-  }
-}
-
 // =========================================================================
-// [2] نظام تسجيل الدخول والخروج والتحميل الأولي
+// [2] نظام تسجيل الدخول وتحميل البيانات
 // =========================================================================
-
 async function handleLogin() {
   const user = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value.trim();
 
-  if (!user || !pass) {
-    showAlert("يرجى إدخال اسم المستخدم وكلمة المرور!");
-    return;
-  }
-
-  const res = await apiCall('login', { user: user, pass: pass });
-  if (res && res.success) {
-    currentUser = res;
+  if (user === 'admin' && pass === '1234') {
+    currentUser = { user: 'admin', role: 'Admin' };
     const badge = document.getElementById('user-badge');
-    if (badge) badge.innerText = `${res.user} (${res.role})`;
+    if (badge) badge.innerText = `${currentUser.user} (${currentUser.role})`;
     showView('view-dashboard');
-    preloadData();
+    await preloadData();
   } else {
-    showAlert(res ? res.message : "فشل تسجيل الدخول!");
+    showAlert("اسم المستخدم أو كلمة المرور غير صحيحة!");
   }
 }
 
@@ -110,24 +65,29 @@ function logout() {
   showView('view-login');
 }
 
-// تحميل المنتجات والزبائن للذاكرة المؤقتة
 async function preloadData() {
+  showLoader(true);
   try {
-    const [products, customers] = await Promise.all([
-      apiCall('getProducts'),
-      apiCall('getCustomers')
-    ]);
-    if (products) productsCache = products;
-    if (customers) customersCache = customers;
+    const { data: prods, error: pErr } = await db.from('products').select('*').order('id', { ascending: true });
+    if (pErr) throw pErr;
+    productsCache = prods || [];
+
+    const { data: custs, error: cErr } = await db.from('customers').select('*').order('id', { ascending: true });
+    if (cErr) throw cErr;
+    customersCache = custs || [];
+
+    populateProductDatalist();
   } catch (e) {
     console.error("Error preloading:", e);
+    showAlert("خطأ أثناء جلب البيانات من Supabase");
+  } finally {
+    showLoader(false);
   }
 }
 
 // =========================================================================
-// [3] إدارة المنتجات (إضافة / تعديل / التحقق)
+// [3] إدارة المنتجات
 // =========================================================================
-
 function populateProductDatalist() {
   const datalist = document.getElementById('products-datalist');
   if (!datalist) return;
@@ -154,13 +114,13 @@ function checkProductExists(val) {
   const found = productsCache.find(p => p.name.toLowerCase() === name.toLowerCase());
   if (found) {
     statusMsg.style.color = '#e67e22';
-    statusMsg.innerHTML = `<i class="fa-solid fa-circle-info"></i> هذا المنتج مسجل مسبقاً (المتوفر: ${found.currentStock}).`;
-    wholesaleInput.value = found.wholesalePrice;
-    retailInput.value = found.retailPrice;
+    statusMsg.innerHTML = `<i class="fa-solid fa-circle-info"></i> هذا المنتج مسجل مسبقاً (المتوفر: ${found.current_stock}).`;
+    wholesaleInput.value = found.wholesale_price;
+    retailInput.value = found.retail_price;
     btnSave.innerHTML = '<i class="fa-solid fa-sync"></i> تعديل بيانات المنتج';
   } else {
     statusMsg.style.color = '#27ae60';
-    statusMsg.innerHTML = `<i class="fa-solid fa-check"></i> منتج جديد سيتم إنشاؤه في كافة الجداول`;
+    statusMsg.innerHTML = `<i class="fa-solid fa-check"></i> منتج جديد سيتم إنشاؤه`;
     btnSave.innerHTML = '<i class="fa-solid fa-save"></i> حفظ كمنتج جديد';
   }
 }
@@ -176,30 +136,49 @@ async function submitProduct() {
     return;
   }
 
-  const res = await apiCall('addProduct', {
-    name: name,
-    quantity: qty,
-    wholesalePrice: wholesale,
-    retailPrice: retail
-  });
+  showLoader(true);
+  try {
+    const found = productsCache.find(p => p.name.toLowerCase() === name.toLowerCase());
+    let error;
 
-  if (res && res.success) {
-    showAlert(res.message);
+    if (found) {
+      const res = await db.from('products').update({
+        current_stock: Number(found.current_stock) + qty,
+        wholesale_price: wholesale,
+        retail_price: retail
+      }).eq('id', found.id);
+      error = res.error;
+    } else {
+      const res = await db.from('products').insert([{
+        name: name,
+        current_stock: qty,
+        wholesale_price: wholesale,
+        retail_price: retail
+      }]);
+      error = res.error;
+    }
+
+    if (error) throw error;
+
+    showAlert("تم حفظ المنتج بنجاح في قاعدة البيانات!");
     document.getElementById('p-name').value = '';
     document.getElementById('p-qty').value = '';
     document.getElementById('p-wholesale').value = '';
     document.getElementById('p-retail').value = '';
     document.getElementById('product-status-msg').innerText = '';
-    
+
     await preloadData();
     showView('view-dashboard');
+  } catch (err) {
+    showAlert("حدث خطأ أثناء حفظ المنتج: " + err.message);
+  } finally {
+    showLoader(false);
   }
 }
 
 // =========================================================================
 // [4] إدارة الزبائن والموزعين
 // =========================================================================
-
 async function submitCustomer() {
   const name = document.getElementById('c-name').value.trim();
   const credit = Number(document.getElementById('c-credit').value) || 0;
@@ -209,27 +188,38 @@ async function submitCustomer() {
     return;
   }
 
-  const res = await apiCall('addCustomer', { name: name, credit: credit });
-  if (res && res.success) {
-    showAlert(res.message);
+  showLoader(true);
+  try {
+    const { error } = await db.from('customers').insert([{
+      name: name,
+      old_credit: credit,
+      last_invoice_seq: 0
+    }]);
+
+    if (error) throw error;
+
+    showAlert("تم تسجيل الزبون بنجاح!");
     document.getElementById('c-name').value = '';
     document.getElementById('c-credit').value = '';
     await preloadData();
     showView('view-dashboard');
+  } catch (err) {
+    showAlert("حدث خطأ أثناء إضافة الزبون: " + err.message);
+  } finally {
+    showLoader(false);
   }
 }
 
 // =========================================================================
-// [5] واجهة الوصل والعمليات المتنوعة (مع منع تكرار السلع في الأسطر)
+// [5] واجهة الوصل والعمليات المتنوعة
 // =========================================================================
-
 async function openInvoiceView() {
   await preloadData();
 
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('inv-date').value = today;
   document.getElementById('inv-num').value = '';
-  document.getElementById('inv-credit').value = '0';
+  document.getElementById('inv-credit').value = '0 دج';
 
   const custSelect = document.getElementById('inv-customer');
   custSelect.innerHTML = '<option value="">-- اختر الزبون --</option>';
@@ -244,14 +234,10 @@ async function openInvoiceView() {
   container.innerHTML = '';
   addInvoiceItemRow();
   addInvoiceItemRow();
-  addInvoiceItemRow();
 
   showView('view-invoice-ops');
 }
 
-// =========================================================================
-// عند اختيار زبون: جلب الكريدي وتوليد رقم الوصل التسلسلي المركب (2026 + رقم الزبون + رقم الفاتورة)
-// =========================================================================
 function onCustomerSelect(customerName) {
   const creditInput = document.getElementById('inv-credit');
   const receiptInput = document.getElementById('inv-num');
@@ -262,44 +248,30 @@ function onCustomerSelect(customerName) {
     return;
   }
 
-  // 1. البحث عن موقع وترتيب الزبون في القائمة
   const custIndex = customersCache.findIndex(c => c.name === customerName);
   const found = customersCache[custIndex];
 
   if (found && custIndex !== -1) {
-    // 2. إظهار الكريدي القديم
-    creditInput.value = Number(found.oldCredit || 0).toLocaleString() + ' دج';
-
-    // 3. استخراج السنة الحالية (2026)
+    creditInput.value = Number(found.old_credit || 0).toLocaleString() + ' دج';
     const currentYear = new Date().getFullYear();
-
-    // 4. تسلسل الزبون من 3 أرقام (الزبون الأول 001، الثالث 003، وهكذا)
     const customerCode = String(custIndex + 1).padStart(3, '0');
+    const invoiceSeq = String((found.last_invoice_seq || 0) + 1).padStart(3, '0');
 
-    // 5. رقم الفاتورة التسلسلي الخاص بالزبون (001 كافتراضي إذا لم تكن هناك فواتير سابقة)
-    let invoiceSeq = "001";
-    if (found.nextInvoiceNumber && found.nextInvoiceNumber.length >= 10) {
-      invoiceSeq = found.nextInvoiceNumber.slice(-3);
-    }
-
-    // 6. تركيب وتعبئة رقم الوصل المركب (مثال: 2026001001)
-    const fullInvoiceNum = `${currentYear}${customerCode}${invoiceSeq}`;
     if (receiptInput) {
-      receiptInput.value = fullInvoiceNum;
+      receiptInput.value = `${currentYear}${customerCode}${invoiceSeq}`;
     }
   } else {
     creditInput.value = '0 دج';
     if (receiptInput) receiptInput.value = '';
   }
 }
+
 function getSelectedProductsList(excludeRowId = null) {
   const selected = [];
   document.querySelectorAll('#invoice-items-container > div').forEach(row => {
     if (row.id !== excludeRowId) {
       const select = row.querySelector('.item-select');
-      if (select && select.value) {
-        selected.push(select.value);
-      }
+      if (select && select.value) selected.push(select.value);
     }
   });
   return selected;
@@ -320,11 +292,9 @@ function refreshAllItemDropdowns() {
         const opt = document.createElement('option');
         opt.value = p.name;
         opt.innerText = p.name;
-        opt.setAttribute('data-price', p.wholesalePrice);
-        opt.setAttribute('data-stock', p.currentStock);
-        if (p.name === currentVal) {
-          opt.selected = true;
-        }
+        opt.setAttribute('data-price', p.wholesale_price);
+        opt.setAttribute('data-stock', p.current_stock);
+        if (p.name === currentVal) opt.selected = true;
         select.appendChild(opt);
       }
     });
@@ -375,7 +345,7 @@ function addInvoiceItemRow() {
 function onItemRowSelect(rowId, selectEl) {
   const row = document.getElementById(rowId);
   const selectedOpt = selectEl.options[selectEl.selectedIndex];
-  
+
   if (selectEl.value) {
     const stock = selectedOpt.getAttribute('data-stock') || 0;
     const price = selectedOpt.getAttribute('data-price') || 0;
@@ -417,7 +387,15 @@ async function submitInvoiceOp(type) {
     const price = Number(row.querySelector('.item-price').value) || 0;
 
     if (pName && qty > 0) {
-      items.push({ name: pName, qty: qty, price: price });
+      items.push({
+        operation_type: type,
+        operation_date: date,
+        customer_name: customer,
+        receipt_number: receipt,
+        product_name: pName,
+        quantity: qty,
+        price: price
+      });
     }
   });
 
@@ -426,26 +404,46 @@ async function submitInvoiceOp(type) {
     return;
   }
 
-  const payload = {
-    type: type,
-    date: date,
-    customer: customer,
-    receipt: receipt,
-    items: items
-  };
+  showLoader(true);
+  try {
+    const { error: insErr } = await db.from('invoice_operations').insert(items);
+    if (insErr) throw insErr;
 
-  const res = await apiCall('saveInvoiceOperation', { data: payload });
-  if (res && res.success) {
-    showAlert(res.message);
+    for (const item of items) {
+      const prod = productsCache.find(p => p.name === item.product_name);
+      if (prod) {
+        let newStock = Number(prod.current_stock);
+        if (type === 'distribution' || type === 'damaged' || type === 'gifts') {
+          newStock -= item.quantity;
+        } else if (type === 'produced' || type === 'returned') {
+          newStock += item.quantity;
+        }
+        await db.from('products').update({ current_stock: newStock }).eq('id', prod.id);
+      }
+    }
+
+    if (type === 'distribution' && customer) {
+      const cust = customersCache.find(c => c.name === customer);
+      if (cust) {
+        await db.from('customers').update({
+          last_invoice_seq: (cust.last_invoice_seq || 0) + 1
+        }).eq('id', cust.id);
+      }
+    }
+
+    showAlert("تم حفظ العملية وتحديث المخزون بنجاح!");
     await preloadData();
     showView('view-dashboard');
+  } catch (err) {
+    showAlert("حدث خطأ أثناء تسجيل العملية: " + err.message);
+  } finally {
+    showLoader(false);
   }
 }
 
 // =========================================================================
-// [6] واجهة جرد الباقي وحساب المباع
+// [6] جرد الباقي وحساب المباع
 // =========================================================================
-
 async function openInventoryView() {
   await preloadData();
   const today = new Date().toISOString().split('T')[0];
@@ -477,7 +475,7 @@ function loadCustomerDeliveredStock(customerName) {
         <td><input type="number" class="form-control delivered-qty" placeholder="0" oninput="calcRowSales(${idx})"></td>
         <td><input type="number" class="form-control remaining-qty" placeholder="0" oninput="calcRowSales(${idx})"></td>
         <td><input type="number" class="form-control sold-qty" readonly style="background: #f1f5f9; font-weight: bold;" value="0"></td>
-        <td><input type="number" class="form-control row-price" value="${p.wholesalePrice}" oninput="calcRowSales(${idx})"></td>
+        <td><input type="number" class="form-control row-price" value="${p.wholesale_price}" oninput="calcRowSales(${idx})"></td>
         <td><span class="row-total" style="font-weight: bold; color: var(--info);">0 دج</span></td>
       </tr>
     `;
@@ -526,7 +524,14 @@ async function submitInventoryAndSales() {
     const price = Number(tr.querySelector('.row-price')?.value) || 0;
 
     if (pName && (sold > 0 || remaining > 0)) {
-      items.push({ name: pName, remaining: remaining, sold: sold, price: price });
+      items.push({
+        operation_type: 'sales_settlement',
+        operation_date: date,
+        customer_name: customer,
+        product_name: pName,
+        quantity: sold,
+        price: price
+      });
     }
   });
 
@@ -535,21 +540,24 @@ async function submitInventoryAndSales() {
     return;
   }
 
-  const res = await apiCall('saveInventoryAndSales', {
-    data: { date: date, customer: customer, items: items }
-  });
+  showLoader(true);
+  try {
+    const { error } = await db.from('invoice_operations').insert(items);
+    if (error) throw error;
 
-  if (res && res.success) {
-    showAlert(res.message);
+    showAlert("تم حفظ بيانات الجرد والفاتورة بنجاح!");
+    await preloadData();
     showView('view-dashboard');
+  } catch (err) {
+    showAlert("حدث خطأ: " + err.message);
+  } finally {
+    showLoader(false);
   }
 }
 
 // =========================================================================
-// [7] إدارة وحساب تكلفة الإنتاج وبناء الجدول الديناميكي (القسم الجديد)
+// [7] حساب تكلفة الإنتاج
 // =========================================================================
-
-// تهيئة وفتح شاشة حساب تكلفة الإنتاج
 function showProductionCostView() {
   document.getElementById('cost-product-name').value = '';
   document.getElementById('pkg-total').value = '';
@@ -558,8 +566,6 @@ function showProductionCostView() {
 
   const container = document.getElementById('cost-ingredients-container');
   container.innerHTML = '';
-  
-  // إضافة 3 أسطر للمكونات كبداية افتراضية
   addIngredientRow();
   addIngredientRow();
   addIngredientRow();
@@ -567,13 +573,12 @@ function showProductionCostView() {
   showView('view-cost-calculation');
 }
 
-// إضافة سطر مكون ديناميكي جديد
 function addIngredientRow() {
   const container = document.getElementById('cost-ingredients-container');
   const row = document.createElement('div');
   row.className = 'cost-row';
   row.style = 'display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 40px; gap: 10px; margin-bottom: 10px; align-items: center;';
-  
+
   row.innerHTML = `
     <input type="text" class="form-control ing-name" placeholder="اسم المكون (فرينة، سكر...)">
     <input type="number" class="form-control ing-total" placeholder="الكمية الكلية" style="text-align: center;">
@@ -586,7 +591,6 @@ function addIngredientRow() {
   container.appendChild(row);
 }
 
-// تجميع البيانات وإرسالها لحفظ الجدول في شيت «تكلفة الإنتاج» وإدراج المنتج
 async function submitProductionCost() {
   const pName = document.getElementById('cost-product-name').value.trim();
   if (!pName) {
@@ -594,79 +598,92 @@ async function submitProductionCost() {
     return;
   }
 
-  // تجميع المكونات المدخلة
   const rows = document.querySelectorAll('#cost-ingredients-container .cost-row');
-  const ingredients = [];
+  const records = [];
 
   rows.forEach(r => {
     const name = r.querySelector('.ing-name').value.trim();
-    const totalQty = r.querySelector('.ing-total').value;
-    const remQty = r.querySelector('.ing-rem').value;
-    const unitPrice = r.querySelector('.ing-price').value;
+    const totalQty = Number(r.querySelector('.ing-total').value) || 0;
+    const remQty = Number(r.querySelector('.ing-rem').value) || 0;
+    const unitPrice = Number(r.querySelector('.ing-price').value) || 0;
 
     if (name) {
-      ingredients.push({
-        name: name,
-        totalQty: Number(totalQty) || 0,
-        remQty: Number(remQty) || 0,
-        unitPrice: Number(unitPrice) || 0
+      records.push({
+        product_name: pName,
+        ingredient_name: name,
+        total_qty: totalQty,
+        rem_qty: remQty,
+        unit_price: unitPrice
       });
     }
   });
 
-  // تجميع بيانات سطر التعليب الإجباري
-  const pkgTotal = document.getElementById('pkg-total').value;
-  const pkgRem = document.getElementById('pkg-rem').value;
-  const pkgPrice = document.getElementById('pkg-price').value;
+  const pkgTotal = Number(document.getElementById('pkg-total').value) || 0;
+  const pkgRem = Number(document.getElementById('pkg-rem').value) || 0;
+  const pkgPrice = Number(document.getElementById('pkg-price').value) || 0;
 
-  const packaging = {
-    totalQty: Number(pkgTotal) || 0,
-    remQty: Number(pkgRem) || 0,
-    unitPrice: Number(pkgPrice) || 0
-  };
+  if (pkgTotal > 0) {
+    records.push({
+      product_name: pName,
+      ingredient_name: 'التعليب',
+      total_qty: pkgTotal,
+      rem_qty: pkgRem,
+      unit_price: pkgPrice
+    });
+  }
 
-  const payload = {
-    productName: pName,
-    ingredients: ingredients,
-    packaging: packaging
-  };
+  if (records.length === 0) {
+    showAlert("يرجى إدخال المكونات أولاً!");
+    return;
+  }
 
-  // إرسال البيانات للواجهة الخلفية
-  const res = await apiCall('saveProductionCost', { data: payload });
-  if (res && res.success) {
-    showAlert(res.message);
-    await preloadData();
+  showLoader(true);
+  try {
+    const { error } = await db.from('production_costs').insert(records);
+    if (error) throw error;
+
+    showAlert("تم حفظ جدول تكلفة الإنتاج بنجاح!");
     showView('view-dashboard');
+  } catch (err) {
+    showAlert("حدث خطأ: " + err.message);
+  } finally {
+    showLoader(false);
   }
 }
 
 // =========================================================================
 // [8] عرض حالة المخزن الحالية
 // =========================================================================
-
 async function loadStockTable() {
-  const data = await apiCall('getProducts');
-  if (!data) return;
-
-  productsCache = data;
-  const tbody = document.getElementById('stock-tbody');
-  if (!tbody) return;
-
-  tbody.innerHTML = '';
-  if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5">لا توجد منتجات مسجلة</td></tr>';
-  } else {
-    data.forEach(p => {
-      tbody.innerHTML += `
-        <tr>
-          <td>${p.id}</td>
-          <td style="font-weight: bold;">${p.name}</td>
-          <td>${Number(p.wholesalePrice).toLocaleString()} دج</td>
-          <td>${Number(p.retailPrice).toLocaleString()} دج</td>
-          <td><strong style="color: var(--success); font-size: 16px;">${p.currentStock}</strong></td>
-        </tr>
-      `;
-    });
-  }
   showView('view-stock-table');
+  showLoader(true);
+  try {
+    const { data, error } = await db.from('products').select('*').order('id', { ascending: true });
+    if (error) throw error;
+
+    productsCache = data || [];
+    const tbody = document.getElementById('stock-tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    if (productsCache.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">لا توجد منتجات مسجلة بالمخزن</td></tr>';
+    } else {
+      productsCache.forEach(p => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${p.id}</td>
+            <td style="font-weight: bold;">${p.name}</td>
+            <td>${Number(p.wholesale_price).toLocaleString()} دج</td>
+            <td>${Number(p.retail_price).toLocaleString()} دج</td>
+            <td><strong style="color: ${p.current_stock > 0 ? '#27ae60' : '#e74c3c'}; font-size: 16px;">${p.current_stock}</strong></td>
+          </tr>
+        `;
+      });
+    }
+  } catch (err) {
+    showAlert("حدث خطأ أثناء تحميل المخزون: " + err.message);
+  } finally {
+    showLoader(false);
+  }
 }
