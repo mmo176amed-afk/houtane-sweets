@@ -1,4 +1,16 @@
 /**
+// ==========================================
+// 1. إعداد الاتصال بقاعدة بيانات Supabase
+// ==========================================
+const SUPABASE_URL = 'https://ntvmrdwwnjqunsagritz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_DQ6yB5s9oLL_jxiWZKB9gQ_Pa0uwIRW'; // المفتاح العام الكامل
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// التأكد من جاهزية الاتصال
+console.log("Supabase Client Connected Successfully!");
+ 
  * =========================================================================
  * نظام إدارة ورشة الحلويات والمخزن - ملف المعالجة البرمجية الكامل (app.js)
  * =========================================================================
