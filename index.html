@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نظام إدارة ورشة الحلويات والمخزن</title>
+  
+  <!-- مكتبة الأيقونات FontAwesome وتنسيقات CSS الخارجية -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ========================================================================= -->
+<!-- مؤشر التحميل (Spinner) الذي يظهر أثناء إرسال واستقبال البيانات من Google Sheets -->
+<!-- ========================================================================= -->
+<div id="loader" class="loader-overlay">
+  <div style="text-align: center;">
+    <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
+    <div style="margin-top: 10px;">جاري المعالجة...</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ======================================================================= -->
+  <!-- [1] شاشة تسجيل الدخول (Login View) -->
+  <!-- ======================================================================= -->
+  <div id="view-login" class="view-section view-active">
+    <div class="card" style="max-width: 450px; margin: 60px auto;">
+      <div style="text-align: center; margin-bottom: 25px;">
+        <i class="fa-solid fa-cookie-bite fa-3x" style="color: var(--accent);"></i>
+        <h2 style="margin-top: 10px;">تسجيل الدخول</h2>
+        <p style="color: #64748b;">نظام إدارة ورشة الحلويات والمخزن</p>
+      </div>
+
+      <!-- حقل اسم المستخدم -->
+      <div class="form-group">
+        <label>اسم المستخدم</label>
+        <input type="text" id="login-user" class="form-control" placeholder="أدخل اسم المستخدم">
+      </div>
+
+      <!-- حقل كلمة المرور -->
+      <div class="form-group">
+        <label>كلمة المرور</label>
+        <input type="password" id="login-pass" class="form-control" placeholder="أدخل كلمة المرور">
+      </div>
+
+      <!-- زر الدخول -->
+      <button class="btn-action" style="width: 100%; margin-top: 10px;" onclick="handleLogin()">
+        <i class="fa-solid fa-right-to-bracket"></i> دخول
+      </button>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- [2] لوحة التحكم الرئيسية (Dashboard View) -->
+  <!-- ======================================================================= -->
+  <div id="view-dashboard" class="view-section">
+    <!-- الشريط العلوي لمعلومات المستخدم وتسجيل الخروج -->
+    <div class="header-bar">
+      <div>
+        <h2 style="color: var(--primary); font-size: 22px;">
+          <i class="fa-solid fa-store" style="color: var(--accent);"></i> لوحة التحكم الرئيسية
+        </h2>
+      </div>
+      <div>
+        <span id="user-badge" style="background: var(--success); color: white; padding: 6px 15px; border-radius: 20px; font-size: 14px; margin-left: 10px;"></span>
+        <button class="btn-action btn-secondary" style="padding: 6px 12px; font-size: 14px;" onclick="logout()">
+          <i class="fa-solid fa-power-off"></i> خروج
+        </button>
+      </div>
+    </div>
+
+    <!-- شبكة أزرار الوصول السريع للأقسام -->
+    <div class="btn-grid">
+      <!-- زر إضافة وتعديل المنتجات -->
+      <button class="app-btn btn-p1" onclick="showView('view-add-product')">
+        <i class="fa-solid fa-box-open"></i>
+        إضافة وتعديل المنتجات
+      </button>
+
+      <!-- زر إدارة الزبائن والموزعين -->
+      <button class="app-btn btn-p2" onclick="showView('view-add-customer')">
+        <i class="fa-solid fa-users"></i>
+        إدارة الزبائن والموزعين
+      </button>
+
+      <!-- زر تسجيل الوصل والعمليات -->
+      <button class="app-btn btn-p3" onclick="openInvoiceView()">
+        <i class="fa-solid fa-truck-ramp-box"></i>
+        وصل جديد والعمليات على المنتجات
+      </button>
+
+      <!-- زر جرد الباقي وحساب المباع -->
+      <button class="app-btn btn-p4" onclick="openInventoryView()">
+        <i class="fa-solid fa-calculator"></i>
+        جرد الباقي وحساب المباع
+      </button>
+
+      <!-- زر حساب تكلفة الإنتاج (القسم المضاف الجديد) -->
+      <button class="app-btn" style="background: #2c3e50; color: white;" onclick="showProductionCostView()">
+        <i class="fa-solid fa-chart-pie"></i>
+        حساب تكلفة الإنتاج
+      </button>
+
+      <!-- زر متابعة الكريدي -->
+      <button class="app-btn btn-p5" onclick="alert('سيتم إضافتها في المرحلة القادمة')">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        متابعة الكريدي والتحصيل
+      </button>
+
+      <!-- زر عرض المخزون الحالي -->
+      <button class="app-btn btn-p6" onclick="loadStockTable()">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        عرض حالة المخزن الحالي
+      </button>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- [3] واجهة إضافة وتعديل المنتجات (Add/Edit Product View) -->
+  <!-- ======================================================================= -->
+  <div id="view-add-product" class="view-section">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3><i class="fa-solid fa-box-open" style="color: var(--info);"></i> إضافة وتعديل المنتجات</h3>
+        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="position: relative;">
+          <label>اسم الحلوى / المنتج</label>
+          <input type="text" id="p-name" class="form-control" list="products-datalist" placeholder="اكتب اسم المنتج للبحث أو الإضافة..." oninput="checkProductExists(this.value)">
+          <datalist id="products-datalist"></datalist>
+          <small id="product-status-msg" style="display: block; margin-top: 5px; font-weight: bold;"></small>
+        </div>
+        <div class="form-group">
+          <label>الكمية المنتجة / الابتدائية</label>
+          <input type="number" id="p-qty" class="form-control" placeholder="0">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>سعر الجملة (دج)</label>
+          <input type="number" id="p-wholesale" class="form-control" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>سعر التجزئة (دج)</label>
+          <input type="number" id="p-retail" class="form-control" placeholder="0">
+        </div>
+      </div>
+
+      <div style="text-align: left; margin-top: 15px;">
+        <button id="btn-save-prod" class="btn-action" onclick="submitProduct()">
+          <i class="fa-solid fa-save"></i> حفظ المنتج
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- [4] واجهة إضافة الزبائن والموزعين (Add Customer View) -->
+  <!-- ======================================================================= -->
+  <div id="view-add-customer" class="view-section">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3><i class="fa-solid fa-user-plus" style="color: var(--success);"></i> إضافة زبون / موزع جديد</h3>
+        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>اسم الزبون أو الموزع</label>
+          <input type="text" id="c-name" class="form-control" placeholder="أدخل اسم الزبون">
+        </div>
+        <div class="form-group">
+          <label>الكريدي القديم (دج)</label>
+          <input type="number" id="c-credit" class="form-control" placeholder="0">
+        </div>
+      </div>
+
+      <div style="text-align: left; margin-top: 15px;">
+        <button class="btn-action" style="background: var(--success);" onclick="submitCustomer()">
+          <i class="fa-solid fa-save"></i> تسجيل الزبون
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- [5] واجهة وصل جديد والعمليات على المنتجات (Invoice & Operations View) -->
+  <!-- ======================================================================= -->
+  <div id="view-invoice-ops" class="view-section">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3><i class="fa-solid fa-file-lines" style="color: var(--accent);"></i> وصل جديد والعمليات على المنتجات</h3>
+        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <!-- حقول رأس الوصل -->
+      <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr; margin-bottom: 15px;">
+        <div class="form-group">
+          <label>التاريخ</label>
+          <input type="date" id="inv-date" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>رقم الوصل</label>
+          <input type="text" id="inv-num" class="form-control" placeholder="رقم الوصل">
+        </div>
+        <div class="form-group">
+          <label>اسم الزبون / الموزع</label>
+          <select id="inv-customer" class="form-control" onchange="onCustomerSelect(this.value)">
+            <option value="">-- اختر الزبون --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>قيمة الكريدي (دج)</label>
+          <input type="text" id="inv-credit" class="form-control" readonly style="background: #edf2f7; font-weight: bold; color: var(--danger);">
+        </div>
+      </div>
+
+      <!-- أزرار العمليات والترحيل للجداول المتخصصة -->
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; background: #e2e8f0; padding: 12px; border-radius: 8px;">
+        <button class="btn-action" style="background: #27ae60;" onclick="submitInvoiceOp('distribution')">
+          <i class="fa-solid fa-truck"></i> وصل جديد (توزيع)
+        </button>
+        <button class="btn-action" style="background: #e67e22;" onclick="submitInvoiceOp('produced')">
+          <i class="fa-solid fa-cookie"></i> سلعة منتجة
+        </button>
+        <button class="btn-action" style="background: #3498db;" onclick="submitInvoiceOp('returned')">
+          <i class="fa-solid fa-rotate-left"></i> مسترجعة
+        </button>
+        <button class="btn-action" style="background: #d35400;" onclick="submitInvoiceOp('damaged')">
+          <i class="fa-solid fa-trash-can"></i> تالفة
+        </button>
+        <button class="btn-action" style="background: #c0392b;" onclick="submitInvoiceOp('gifts')">
+          <i class="fa-solid fa-gift"></i> هدايا
+        </button>
+      </div>
+
+      <!-- حاوية بنود المنتجات في الوصل -->
+      <div id="invoice-items-container"></div>
+
+      <div style="margin-top: 15px;">
+        <button class="btn-action" style="background: #4b6584;" onclick="addInvoiceItemRow()">
+          <i class="fa-solid fa-plus"></i> إضافة سطر منتج آخر للوصل
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- [6] واجهة جرد الباقي وحساب المباع (Inventory & Sales View) -->
+  <!-- ======================================================================= -->
+  <div id="view-inventory" class="view-section">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3><i class="fa-solid fa-calculator" style="color: #8e44ad;"></i> جرد الباقي وحساب المباع والفاتورة</h3>
+        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 15px;">
+        <div class="form-group">
+          <label>التاريخ</label>
+          <input type="date" id="invt-date" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>اسم الزبون / الموزع</label>
+          <select id="invt-customer" class="form-control" onchange="loadCustomerDeliveredStock(this.value)">
+            <option value="">-- اختر الزبون --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>إجمالي الفاتورة الحالية (دج)</label>
+          <input type="text" id="invt-total" class="form-control" readonly style="background: #eef2f7; font-size: 18px; font-weight: bold; color: var(--success);" value="0 دج">
+        </div>
+      </div>
+
+      <!-- جدول تفاصيل الجرد والحساب الآلي -->
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>المنتج</th>
+              <th>الكمية المسلمة</th>
+              <th>الباقي (المرتجع)</th>
+              <th>الكمية المباعة</th>
+              <th>السعر</th>
+              <th>المجموع</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-tbody">
+            <tr><td colspan="6">اختر الزبون أولاً لتحميل السلع المسلمة له</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="text-align: left; margin-top: 20px;">
+        <button class="btn-action" style="background: #8e44ad;" onclick="submitInventoryAndSales()">
+          <i class="fa-solid fa-check-double"></i> تأكيد وحفظ الجرد والفاتورة
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- [7] واجهة حساب تكلفة الإنتاج (Production Cost View) - الإضافة الجديدة -->
+  <!-- ======================================================================= -->
+  <div id="view-cost-calculation" class="view-section">
+    <div class="card" style="max-width: 950px; margin: 0 auto;">
+      <!-- شريط العنوان والرجوع -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3><i class="fa-solid fa-chart-pie" style="color: #2c3e50;"></i> جدول حساب تكلفة الإنتاج للمنتج</h3>
+        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <!-- حقل اسم المنتج -->
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label style="font-weight: bold; font-size: 15px;">اسم المنتج الجديد:</label>
+        <input type="text" id="cost-product-name" class="form-control" placeholder="اكتب اسم الحلوى أو الطارط (مثال: طارت كراميل)...">
+      </div>
+
+      <!-- قسم إدخال المكونات المتتابعة -->
+      <div style="border-top: 1px solid #e2e8f0; padding-top: 15px;">
+        <h4 style="color: #34495e; margin-bottom: 10px;"><i class="fa-solid fa-list-check"></i> مكونات المنتج:</h4>
+        
+        <!-- حاوية أسطر المكونات الديناميكية -->
+        <div id="cost-ingredients-container"></div>
+
+        <!-- زر إضافة سطر مكون جديد -->
+        <button type="button" class="btn-action" style="background: #34495e; margin-top: 10px; width: 100%;" onclick="addIngredientRow()">
+          <i class="fa-solid fa-plus"></i> إضافة مكون آخر للجدول
+        </button>
+      </div>
+
+      <!-- قسم سطر التعليب المخصص للحسابات الرياضية -->
+      <div style="margin-top: 25px; background: #fff8e1; padding: 15px; border-radius: 8px; border: 1px solid #ffe082;">
+        <h4 style="color: #d35400; margin-bottom: 10px;">
+          <i class="fa-solid fa-box"></i> بيانات سطر التعليب (إجباري لحساب سعر العلبة والحبة):
+        </h4>
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px;">
+          <input type="text" value="التعليب" disabled class="form-control" style="background: #e9ecef; font-weight: bold; text-align: center;">
+          <input type="number" id="pkg-total" class="form-control" placeholder="الكمية الكلية" style="text-align: center;">
+          <input type="number" id="pkg-rem" class="form-control" placeholder="الباقي" style="text-align: center;">
+          <input type="number" id="pkg-price" class="form-control" placeholder="سعر الوحدة (دج)" style="text-align: center;">
+        </div>
+      </div>
+
+      <!-- زر الحفظ وبناء الجدول بالشيت -->
+      <div style="text-align: left; margin-top: 25px;">
+        <button type="button" class="btn-action" style="background: #27ae60; width: 100%; font-size: 16px; padding: 12px;" onclick="submitProductionCost()">
+          <i class="fa-solid fa-calculator"></i> إنشاء الجدول وحساب التكلفة في الشيت
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- [8] جدول عرض حالة المخزون الحالي (Stock Status View) -->
+  <!-- ======================================================================= -->
+  <div id="view-stock-table" class="view-section">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3><i class="fa-solid fa-warehouse" style="color: var(--secondary);"></i> حالة المخزون الحالية</h3>
+        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>الرقم</th>
+              <th>اسم المنتج</th>
+              <th>سعر الجملة</th>
+              <th>سعر التجزئة</th>
+              <th>الكمية المتوفرة</th>
+            </tr>
+          </thead>
+          <tbody id="stock-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- استدعاء ملف المعالجة البرمجية للواجهة -->
+<script src="app.js"></script>
+</body>
+</html>
