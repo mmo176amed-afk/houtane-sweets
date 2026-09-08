@@ -389,31 +389,23 @@
   <div id="view-cost-calculation" class="view-section">
     <div class="card" style="max-width: 950px; margin: 0 auto;">
       
-      <!-- شريط العنوان والرجوع -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h3><i class="fa-solid fa-chart-pie" style="color: #2c3e50;"></i> جدول حساب تكلفة الإنتاج للمنتج</h3>
-        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
+        <button class="btn-action btn-secondary" onclick="showDashboard()">
           <i class="fa-solid fa-arrow-right"></i> رجوع
         </button>
       </div>
 
-      <!-- حقل اسم المنتج مع البحث التلقائي وقائمة الاقتراحات -->
-      <div class="form-group" style="margin-bottom: 20px; position: relative;">
-        <label style="font-weight: bold; font-size: 15px;">اسم المنتج (ابحث أو اختر من المخزن):</label>
-        <div style="display: flex; gap: 10px;">
-          <input type="text" id="cost-product-name" class="form-control" list="cost-products-datalist" 
-            placeholder="اكتب اسم الحلوى (مثال: طارت سبيسيال)..." 
-            oninput="handleCostProductSearch(this.value)">
-          <datalist id="cost-products-datalist"></datalist>
-          
-          <button type="button" class="btn-action" style="background: #2980b9; white-space: nowrap;" onclick="handleCostProductSearch(document.getElementById('cost-product-name').value)">
-            <i class="fa-solid fa-magnifying-glass"></i> جلب البيانات
-          </button>
-        </div>
-        <small id="cost-status-msg" style="display: block; margin-top: 5px; font-weight: bold; color: #27ae60;"></small>
+      <!-- قائمة اختيار الحلوى المنسدلة المباشرة -->
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label style="font-weight: bold; font-size: 15px;">اختر الحلوى لجلب مكوناتها وتعديلها:</label>
+        <select id="cost-product-select" class="form-control" style="font-size: 16px; font-weight: bold;" onchange="onCostProductSelectChanged(this.value)">
+          <option value="">-- اختر الحلوى --</option>
+        </select>
+        <small id="cost-status-msg" style="display: block; margin-top: 6px; font-weight: bold; font-size: 14px;"></small>
       </div>
 
-      <!-- قسم إدخال المكونات -->
+      <!-- مكونات المنتج -->
       <div style="border-top: 1px solid #e2e8f0; padding-top: 15px;">
         <h4 style="color: #34495e; margin-bottom: 10px;"><i class="fa-solid fa-list-check"></i> مكونات المنتج:</h4>
         <div id="cost-ingredients-container"></div>
@@ -423,7 +415,7 @@
         </button>
       </div>
 
-      <!-- قسم سطر التعليب -->
+      <!-- سطر التعليب -->
       <div style="margin-top: 25px; background: #fff8e1; padding: 15px; border-radius: 8px; border: 1px solid #ffe082;">
         <h4 style="color: #d35400; margin-bottom: 10px;">
           <i class="fa-solid fa-box"></i> بيانات سطر التعليب (إجباري لحساب سعر العلبة والحبة):
