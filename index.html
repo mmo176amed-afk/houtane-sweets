@@ -53,7 +53,7 @@
     </div>
   </div>
 
-  <!-- ======================================================================= -->
+ <!-- ======================================================================= -->
   <!-- [2] لوحة التحكم الرئيسية (Dashboard View) -->
   <!-- ======================================================================= -->
   <div id="view-dashboard" class="view-section">
@@ -98,16 +98,16 @@
         جرد الباقي وحساب المباع
       </button>
 
-      <!-- زر حساب تكلفة الإنتاج (القسم المضاف الجديد) -->
+      <!-- زر حساب تكلفة الإنتاج -->
       <button class="app-btn" style="background: #2c3e50; color: white;" onclick="showProductionCostView()">
         <i class="fa-solid fa-chart-pie"></i>
         حساب تكلفة الإنتاج
       </button>
 
-      <!-- زر متابعة الكريدي -->
-      <button class="app-btn btn-p5" onclick="alert('سيتم إضافتها في المرحلة القادمة')">
+      <!-- زر سجل الفواتير والدفعات المحدث -->
+      <button class="app-btn btn-p5" onclick="loadInvoicesTable()">
         <i class="fa-solid fa-file-invoice-dollar"></i>
-        متابعة الكريدي والتحصيل
+        سجل الفواتير والدفعات
       </button>
 
       <!-- زر عرض المخزون الحالي -->
@@ -117,7 +117,6 @@
       </button>
     </div>
   </div>
-
   <!-- ======================================================================= -->
   <!-- [3] واجهة إضافة وتعديل المنتجات (Add/Edit Product View) -->
   <!-- ======================================================================= -->
@@ -374,7 +373,7 @@
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
         <h3><i class="fa-solid fa-warehouse" style="color: var(--secondary);"></i> حالة المخزون الحالية</h3>
-        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
+        <button class="btn-action btn-secondary" onclick="showDashboard()">
           <i class="fa-solid fa-arrow-right"></i> رجوع
         </button>
       </div>
@@ -396,15 +395,43 @@
     </div>
   </div>
 
+  <!-- ======================================================================= -->
+  <!-- [9] واجهة جدول الفواتير والدفعات (Invoices View) -->
+  <!-- ======================================================================= -->
+  <div id="view-invoices-table" class="view-section">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3><i class="fa-solid fa-file-invoice-dollar" style="color: var(--success);"></i> سجل الفواتير والدفعات</h3>
+        <button class="btn-action btn-secondary" onclick="showDashboard()">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>الرقم</th>
+              <th>إسم الزبون</th>
+              <th>رقم الفاتورة</th>
+              <th>مبلغ الفاتورة</th>
+              <th>تاريخ الفاتورة</th>
+              <th>المدفوع</th>
+              <th>تاريخ الدفع</th>
+              <th>الدين</th>
+              <th>الملاحظات</th>
+            </tr>
+          </thead>
+          <tbody id="invoices-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<!-- استدعاء ملف المعالجة البرمجية للواجهة -->
-<!-- استدعاء مكتبة Supabase الرسمية -->
+<!-- استدعاء مكتبة Supabase الرسمية وملف المعالجة البرمجية -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
-</body>
-</html>
-  
- <script src="app.js"></script>
 </body>
 </html>
