@@ -1,18 +1,15 @@
 /**
  * =========================================================================
- * [الفقرة 8] معالجة جدول حالة المخزن الشامل والحسابات التلقائية (stock.js)
+ * [الفقرة 8] جدول حالة المخزن الشامل والحسابات التلقائية (stock.js)
  * =========================================================================
  */
 
-/**
- * جلب وبناء جدول المخزن وحساب كافة العمليات
- */
 async function loadStockTable() {
   showView('view-stock-table');
   showLoader(true);
 
   try {
-    // 1. استرجاع تاريخ التوقيف المحفوظ
+    // 1. استرجاع تاريخ التوقيف المحفوظ في الأعلى
     const savedDate = localStorage.getItem('houtane_stock_stop_date') || new Date().toISOString().split('T')[0];
     const dateInput = document.getElementById('stock-stop-date');
     if (dateInput) dateInput.value = savedDate;
@@ -57,7 +54,7 @@ async function loadStockTable() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    // 4. تطبيق العمليات الحسابية
+    // 4. تطبيق المعادلات الحسابية
     productsCache = (prods || []).map(p => {
       const s = opsSummary[p.name] || { produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0 };
       const baseStock = Number(p.current_stock) || 0;
@@ -85,7 +82,7 @@ async function loadStockTable() {
       return;
     }
 
-    // 5. رسم الخلايا مع مراعاة الترتيب والمطابقة 100% مع الأعمدة الـ 12
+    // 5. بناء الخلايا الـ 12 المتطابقة تماماً مع ترويسة الجدول
     productsCache.forEach((p, index) => {
       const evalDiff = p.retailPrice - p.wholesalePrice;
       const realColor = p.currentStock > 0 ? '#16a085' : (p.currentStock < 0 ? '#c0392b' : '#7f8c8d');
@@ -126,12 +123,12 @@ async function loadStockTable() {
           <!-- 10. مباعة تجزئة (-) -->
           <td style="color: #8e44ad; font-weight: bold;">${p.retailSold}</td>
 
-          <!-- 11. الحقيقي في المخزن (المعادلة الحسابية) -->
+          <!-- 11. الحقيقي في المخزن -->
           <td style="background: #e8f8f5;">
             <strong style="color: ${realColor}; font-size: 16px;">${p.currentStock}</strong>
           </td>
 
-          <!-- 12. فارق التقييم (سعر التجزئة - سعر الجملة) -->
+          <!-- 12. فارق التقييم -->
           <td style="font-weight: bold; color: ${evalDiff >= 0 ? '#27ae60' : '#c0392b'};">
             ${evalDiff.toLocaleString()} دج
           </td>
@@ -147,14 +144,14 @@ async function loadStockTable() {
 }
 
 /**
- * دالة حفظ تاريخ التوقيف في الترويسة العلوية
+ * حفظ تاريخ التوقيف
  */
 function saveStockStopDate(dateVal) {
   localStorage.setItem('houtane_stock_stop_date', dateVal);
 }
 
 /**
- * دالة الحفظ الفوري عند تعديل خانة "حالة المخزن" (العمود 3)
+ * تعديل وحفظ المخزون الابتدائي (العمود 3) مباشرة
  */
 async function updateBaseStockInline(productId, newValue) {
   const val = parseFloat(newValue) || 0;
