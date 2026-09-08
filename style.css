@@ -181,3 +181,15 @@ tr:nth-child(even) { background-color: #f8fafc; }
   font-weight: bold;
   color: var(--primary);
 }
+/* ضبط اتجاه عرض الأرقام والمبالغ المالية لمنع انعكاس الفواصل */
+#inv-old-credit-val,
+#inv-total-goods,
+#inv-grand-total,
+#inv-new-debt,
+.inv-item-price,
+.inv-item-qty,
+.financial-summary-grid input {
+  direction: ltr !important;
+  text-align: center !important;
+  unicode-bidi: embed !important;
+}
