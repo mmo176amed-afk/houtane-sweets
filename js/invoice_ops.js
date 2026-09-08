@@ -9,18 +9,37 @@ let invoiceItemRowCount = 0;
 let isEditMode = false;
 
 /**
+ * دالة تنسيق المبالغ المالية مع فراغ الآلاف ورقمين بعد الفاصلة (مثال: 982 133.60)
+ */
+function formatMoneyDisplay(amount) {
+  const num = Number(amount) || 0;
+  return num.toLocaleString('fr-FR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).replace(/\u202F/g, ' '); // ضمان مسافة عادية بين الآلاف
+}
+
+/**
+ * دالة استخراج الرقم الصافي من النصوص المنسقة
+ */
+function parseCleanNumber(val) {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  const cleaned = String(val).replace(/\s/g, '').replace(',', '.');
+  return parseFloat(cleaned) || 0;
+}
+
+/**
  * 1. فتح شاشة الوصل وتهيئة الحقول
  */
 function openInvoiceView() {
   showView('view-invoice-ops');
   cancelInvoiceEditMode();
 
-  // ضبط تاريخ اليوم تلقائياً
   const today = new Date().toISOString().split('T')[0];
   const dateInput = document.getElementById('inv-date');
   if (dateInput) dateInput.value = today;
 
-  // تعبئة قائمة الزبائن
   const custSelect = document.getElementById('inv-customer-select');
   if (custSelect) {
     custSelect.innerHTML = '<option value="">-- اختر الزبون --</option>';
@@ -32,17 +51,15 @@ function openInvoiceView() {
     });
   }
 
-  // تصفير الخانات المالية
   document.getElementById('inv-num').value = '';
-  document.getElementById('inv-old-credit-val').value = 0;
-  document.getElementById('inv-total-goods').value = 0;
+  document.getElementById('inv-old-credit-val').value = formatMoneyDisplay(0);
+  document.getElementById('inv-total-goods').value = formatMoneyDisplay(0);
   document.getElementById('inv-adjustment-amount').value = '';
-  document.getElementById('inv-grand-total').value = 0;
+  document.getElementById('inv-grand-total').value = formatMoneyDisplay(0);
   document.getElementById('inv-paid-amount').value = '';
-  document.getElementById('inv-new-debt').value = 0;
+  document.getElementById('inv-new-debt').value = formatMoneyDisplay(0);
   document.getElementById('inv-notes').value = '';
 
-  // تجهيز 3 أسطر منتجات أولية
   const container = document.getElementById('invoice-items-container');
   if (container) {
     container.innerHTML = '';
@@ -54,7 +71,7 @@ function openInvoiceView() {
 }
 
 /**
- * 2. تغيير نوع العملية (توزيع، إنتاج، مسترجعة، تالفة، هدايا)
+ * 2. تغيير نوع العملية
  */
 function setInvoiceOperationType(opType) {
   currentInvoiceOperationType = opType;
@@ -69,9 +86,40 @@ function setInvoiceOperationType(opType) {
 }
 
 /**
- * 3. إضافة سطر منتج داخل الوصل مع السعر والمخزون والإضافة التلقائية
+ * 3. منع تكرار المنتجات في القوائم المنسدلة
  */
-function addInvoiceItemRow(prodId = '', price = '', qty = '') {
+function refreshInvoiceDropdownOptions() {
+  const allSelects = document.querySelectorAll('.inv-item-prod');
+  
+  // تجميع كافة المنتجات المختارة حالياً
+  const selectedValues = [];
+  allSelects.forEach(s => {
+    if (s.value) selectedValues.push(s.value);
+  });
+
+  // تحديث خيارات كل قائمة مع الاحتفاظ بالمنتج الحالي لكل سطر
+  allSelects.forEach(select => {
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- اختر الحلوى --</option>';
+
+    productsCache.forEach(p => {
+      const pIdentifier = String(p.id !== null ? p.id : p.name);
+      // يظهر المنتج إذا كان هو المختار في هذا السطر أو غير مختار في أي سطر آخر إطلاقاً
+      if (pIdentifier === currentVal || !selectedValues.includes(pIdentifier)) {
+        const opt = document.createElement('option');
+        opt.value = pIdentifier;
+        opt.innerText = p.name;
+        if (pIdentifier === currentVal) opt.selected = true;
+        select.appendChild(opt);
+      }
+    });
+  });
+}
+
+/**
+ * 4. إضافة سطر منتج داخل الوصل
+ */
+function addInvoiceItemRow(prodVal = '', price = '', qty = '') {
   invoiceItemRowCount++;
   const container = document.getElementById('invoice-items-container');
   if (!container) return;
@@ -82,60 +130,97 @@ function addInvoiceItemRow(prodId = '', price = '', qty = '') {
   rowDiv.className = 'invoice-row-item';
   rowDiv.style = "display: flex; gap: 10px; align-items: center; margin-bottom: 8px;";
 
-  let optionsHtml = '<option value="">-- اختر الحلوى --</option>';
-  productsCache.forEach(p => {
-    const isSelected = p.id == prodId ? 'selected' : '';
-    optionsHtml += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
-  });
-
   rowDiv.innerHTML = `
     <button type="button" class="btn-action" style="background:#e74c3c; padding: 6px 12px;" onclick="removeInvoiceItemRow('${rowId}')">
       <i class="fa-solid fa-xmark"></i>
     </button>
     <div style="flex: 2;">
       <select class="form-control inv-item-prod" onchange="onInvoiceProductChanged(this, '${rowId}')">
-        ${optionsHtml}
+        <option value="">-- اختر الحلوى --</option>
       </select>
     </div>
     <div style="width: 100px; text-align: center;">
       <span class="inv-item-stock" style="font-size: 13px; font-weight: bold; color: #c0392b;">مخزن: 0</span>
     </div>
     <div style="flex: 1;">
-      <input type="number" class="form-control inv-item-price" placeholder="السعر" value="${price}" oninput="calculateInvoiceFinancials()">
+      <input type="number" step="any" class="form-control inv-item-price" placeholder="السعر" value="${price}" oninput="calculateInvoiceFinancials()">
     </div>
     <div style="flex: 1;">
-      <input type="number" class="form-control inv-item-qty" placeholder="الكمية" value="${qty}" oninput="calculateInvoiceFinancials()" onkeydown="handleInvoiceLastInput(event, this)">
+      <input type="number" step="any" class="form-control inv-item-qty" placeholder="الكمية" value="${qty}" 
+        oninput="handleInvoiceQtyInput('${rowId}')" 
+        onkeydown="handleInvoiceEnterKey(event, this)">
     </div>
   `;
 
   container.appendChild(rowDiv);
+  refreshInvoiceDropdownOptions();
 
-  if (prodId) {
+  if (prodVal) {
     const selectEl = rowDiv.querySelector('.inv-item-prod');
+    selectEl.value = prodVal;
     onInvoiceProductChanged(selectEl, rowId);
   }
 }
 
 /**
- * 4. حذف سطر منتج وإعادة حساب الإجمالي
+ * 5. إضافة سطر تلقائي فوري بمجرد إدخال الكمية في السطر الأخير
+ */
+function handleInvoiceQtyInput(currentRowId) {
+  calculateInvoiceFinancials();
+
+  const rows = document.querySelectorAll('.invoice-row-item');
+  if (rows.length === 0) return;
+
+  const lastRow = rows[rows.length - 1];
+  if (lastRow.id === currentRowId) {
+    const qtyInput = lastRow.querySelector('.inv-item-qty');
+    const prodSelect = lastRow.querySelector('.inv-item-prod');
+
+    if (prodSelect.value && qtyInput.value !== "" && Number(qtyInput.value) > 0) {
+      addInvoiceItemRow();
+    }
+  }
+}
+
+/**
+ * 6. دعم زر Enter للانتقال وإضافة سطر جديد
+ */
+function handleInvoiceEnterKey(e, inputEl) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const rows = document.querySelectorAll('.invoice-row-item');
+    const lastRow = rows[rows.length - 1];
+    if (lastRow && lastRow.contains(inputEl)) {
+      addInvoiceItemRow();
+      const updatedRows = document.querySelectorAll('.invoice-row-item');
+      const newlyAdded = updatedRows[updatedRows.length - 1];
+      const newSelect = newlyAdded.querySelector('.inv-item-prod');
+      if (newSelect) newSelect.focus();
+    }
+  }
+}
+
+/**
+ * 7. حذف سطر منتج وتحديث باقي القوائم
  */
 function removeInvoiceItemRow(rowId) {
   const row = document.getElementById(rowId);
   if (row) {
     row.remove();
+    refreshInvoiceDropdownOptions();
     calculateInvoiceFinancials();
   }
 }
 
 /**
- * 5. تحديث سعر المنتج ومخزونه الحالي عند اختياره
+ * 8. عند تغيير المنتج في أي سطر
  */
 function onInvoiceProductChanged(selectEl, rowId) {
   const row = document.getElementById(rowId);
   if (!row) return;
 
-  const prodId = Number(selectEl.value);
-  const found = productsCache.find(p => p.id === prodId);
+  const selectedVal = selectEl.value;
+  const found = productsCache.find(p => String(p.id !== null ? p.id : p.name) === String(selectedVal));
 
   const priceInput = row.querySelector('.inv-item-price');
   const stockSpan = row.querySelector('.inv-item-stock');
@@ -147,29 +232,13 @@ function onInvoiceProductChanged(selectEl, rowId) {
     priceInput.value = '';
     stockSpan.innerText = 'مخزن: 0';
   }
+
+  refreshInvoiceDropdownOptions();
   calculateInvoiceFinancials();
 }
 
 /**
- * 6. إضافة سطر تلقائي عند الضغط على Enter في آخر خانة
- */
-function handleInvoiceLastInput(e, inputEl) {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    const rows = document.querySelectorAll('.invoice-row-item');
-    const lastRow = rows[rows.length - 1];
-    if (lastRow && lastRow.contains(inputEl)) {
-      addInvoiceItemRow();
-      const newRows = document.querySelectorAll('.invoice-row-item');
-      const newlyAdded = newRows[newRows.length - 1];
-      const newSelect = newlyAdded.querySelector('.inv-item-prod');
-      if (newSelect) newSelect.focus();
-    }
-  }
-}
-
-/**
- * 7. عند اختيار الزبون: جلب الكريدي القديم وتوليد رقم الوصل تلقائياً
+ * 9. عند اختيار الزبون وتحديث الكريدي بالأرقام المنسقة
  */
 function onInvoiceCustomerChanged(custName) {
   const numInput = document.getElementById('inv-num');
@@ -177,7 +246,7 @@ function onInvoiceCustomerChanged(custName) {
 
   if (!custName) {
     if (numInput && !isEditMode) numInput.value = '';
-    if (oldCreditInput) oldCreditInput.value = 0;
+    if (oldCreditInput) oldCreditInput.value = formatMoneyDisplay(0);
     calculateInvoiceFinancials();
     return;
   }
@@ -194,38 +263,43 @@ function onInvoiceCustomerChanged(custName) {
     }
 
     const oldDebt = Number(found.oldCredit) || 0;
-    if (oldCreditInput) oldCreditInput.value = oldDebt;
+    if (oldCreditInput) oldCreditInput.value = formatMoneyDisplay(oldDebt);
   }
   calculateInvoiceFinancials();
 }
 
 /**
- * 8. الحساب التلقائي للقيم المالية في الوصل
+ * 10. الحساب التلقائي لجميع المجاميع بالصيغة المنسقة (فراغ بعد 3 أرقام وكسور)
  */
 function calculateInvoiceFinancials() {
   let totalGoods = 0;
 
   const rows = document.querySelectorAll('.invoice-row-item');
   rows.forEach(row => {
-    const price = Number(row.querySelector('.inv-item-price')?.value) || 0;
-    const qty = Number(row.querySelector('.inv-item-qty')?.value) || 0;
+    const price = parseCleanNumber(row.querySelector('.inv-item-price')?.value);
+    const qty = parseCleanNumber(row.querySelector('.inv-item-qty')?.value);
     totalGoods += (price * qty);
   });
 
-  const oldDebt = Number(document.getElementById('inv-old-credit-val')?.value) || 0;
-  const adjustment = Number(document.getElementById('inv-adjustment-amount')?.value) || 0;
-  const paid = Number(document.getElementById('inv-paid-amount')?.value) || 0;
+  const oldDebt = parseCleanNumber(document.getElementById('inv-old-credit-val')?.value);
+  const adjustment = parseCleanNumber(document.getElementById('inv-adjustment-amount')?.value);
+  const paid = parseCleanNumber(document.getElementById('inv-paid-amount')?.value);
 
   const grandTotal = totalGoods + oldDebt + adjustment;
   const newDebt = grandTotal - paid;
 
-  document.getElementById('inv-total-goods').value = totalGoods;
-  document.getElementById('inv-grand-total').value = grandTotal;
-  document.getElementById('inv-new-debt').value = newDebt;
+  // إظهار النتائج بالفراغات والفاصلة بدقة
+  const totalGoodsEl = document.getElementById('inv-total-goods');
+  const grandTotalEl = document.getElementById('inv-grand-total');
+  const newDebtEl = document.getElementById('inv-new-debt');
+
+  if (totalGoodsEl) totalGoodsEl.value = formatMoneyDisplay(totalGoods);
+  if (grandTotalEl) grandTotalEl.value = formatMoneyDisplay(grandTotal);
+  if (newDebtEl) newDebtEl.value = formatMoneyDisplay(newDebt);
 }
 
 /**
- * 9. البحث وجلب وصل سابق للتعديل برقم الوصل
+ * 11. جلب وصل سابق للتعديل
  */
 async function searchAndLoadInvoice() {
   const searchNum = document.getElementById('inv-search-input').value.trim();
@@ -269,7 +343,7 @@ async function searchAndLoadInvoice() {
     document.getElementById('inv-notes').value = inv.notes || '';
 
     const cust = customersCache.find(c => c.name === inv.customer_name);
-    document.getElementById('inv-old-credit-val').value = cust ? (cust.oldCredit || 0) : 0;
+    document.getElementById('inv-old-credit-val').value = formatMoneyDisplay(cust ? (cust.oldCredit || 0) : 0);
 
     const container = document.getElementById('invoice-items-container');
     container.innerHTML = '';
@@ -278,7 +352,8 @@ async function searchAndLoadInvoice() {
     if (items && items.length > 0) {
       items.forEach(it => {
         const prod = productsCache.find(p => p.name === it.product_name);
-        addInvoiceItemRow(prod ? prod.id : '', it.price, it.quantity);
+        const val = prod ? (prod.id !== null ? prod.id : prod.name) : '';
+        addInvoiceItemRow(val, it.price, it.quantity);
       });
     } else {
       addInvoiceItemRow();
@@ -295,7 +370,7 @@ async function searchAndLoadInvoice() {
 }
 
 /**
- * 10. إلغاء وضع التعديل والعودة للوضع الطبيعي
+ * 12. إلغاء وضع التعديل
  */
 function cancelInvoiceEditMode() {
   isEditMode = false;
@@ -314,15 +389,15 @@ function cancelInvoiceEditMode() {
 }
 
 /**
- * 11. الحفظ النهائي (جديد أو تعديل) وترحيل البيانات
+ * 13. الحفظ النهائي وترحيل البيانات
  */
 async function submitCompleteInvoice() {
   const customerName = document.getElementById('inv-customer-select').value;
   const invoiceNum = document.getElementById('inv-num').value.trim();
   const invoiceDate = document.getElementById('inv-date').value;
-  const grandTotal = Number(document.getElementById('inv-grand-total').value) || 0;
-  const paidAmount = Number(document.getElementById('inv-paid-amount').value) || 0;
-  const newDebt = Number(document.getElementById('inv-new-debt').value) || 0;
+  const grandTotal = parseCleanNumber(document.getElementById('inv-grand-total').value);
+  const paidAmount = parseCleanNumber(document.getElementById('inv-paid-amount').value);
+  const newDebt = parseCleanNumber(document.getElementById('inv-new-debt').value);
   const notes = document.getElementById('inv-notes').value.trim();
 
   if (!customerName) {
@@ -339,13 +414,19 @@ async function submitCompleteInvoice() {
 
   rows.forEach(row => {
     const prodSelect = row.querySelector('.inv-item-prod');
-    const prodId = Number(prodSelect?.value);
-    const price = Number(row.querySelector('.inv-item-price')?.value) || 0;
-    const qty = Number(row.querySelector('.inv-item-qty')?.value) || 0;
+    const selectedVal = prodSelect?.value;
+    const price = parseCleanNumber(row.querySelector('.inv-item-price')?.value);
+    const qty = parseCleanNumber(row.querySelector('.inv-item-qty')?.value);
 
-    if (prodId && qty > 0) {
+    if (selectedVal && qty > 0) {
       const prodName = prodSelect.options[prodSelect.selectedIndex].text;
-      itemsToProcess.push({ prodId, prodName, price, qty });
+      const prodObj = productsCache.find(p => String(p.id !== null ? p.id : p.name) === String(selectedVal));
+      itemsToProcess.push({ 
+        prodId: prodObj && prodObj.id ? prodObj.id : null, 
+        prodName: prodName, 
+        price: price, 
+        qty: qty 
+      });
     }
   });
 
@@ -367,7 +448,7 @@ async function submitCompleteInvoice() {
         operation_date: invoiceDate
       }]);
 
-      if (!isEditMode) {
+      if (!isEditMode && item.prodId) {
         const prod = productsCache.find(p => p.id === item.prodId);
         if (prod) {
           let currentStock = Number(prod.currentStock) || 0;
