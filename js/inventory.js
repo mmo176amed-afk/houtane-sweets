@@ -8,13 +8,16 @@ let currentInvoiceOperationType = 'وصل جديد (توزيع)';
 let invoiceItemRowCount = 0;
 let isEditMode = false;
 
-// 1. دالة التنسيق المالي الصارم (فصل الآلاف بمسافة حقيقية + رقمين بعد الفاصلة)
+/**
+ *1 دالة تنسيق المبالغ المالية الصحيحة والمضبوطة بدون انعكاس
+ */
 function formatMoneyDisplay(amount) {
-  const num = parseFloat(amount) || 0;
-  const parts = num.toFixed(2).split('.');
-  // فصل الآلاف بمسافة
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return parts.join('.');
+  const num = Number(amount) || 0;
+  // استخدام التنسيق القياسي الفرنسي (فراغ بين الآلاف وفاصلة عادية)
+  return num.toLocaleString('fr-FR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 }
 
 // 2. دالة تنظيف النص المالي وتحويله لرقم حسابي
