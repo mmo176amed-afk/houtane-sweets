@@ -979,3 +979,91 @@ async function loadStockTable() {
     showLoader(false);
   }
 }
+// =========================================================================
+// [11] عرض سجل الفواتير والدفعات ومتابعة ديون الزبائن
+// =========================================================================
+
+/**
+ * دالة جلب وعرض بيانات جدول الفواتير والدفعات من Supabase
+ * تقوم بالاتصال بجدول invoices وترتيب النتائج وبناء الأسطر ديناميكياً مع تلوين حالة الدين
+ */
+async function loadInvoicesTable() {
+  // 1. فتح واجهة جدول الفواتير وإخفاء باقي الشاشات
+  showView('view-invoices-table');
+
+  // 2. تفعيل مؤشر التحميل الدائري لحين اكتمال جلب البيانات
+  showLoader(true);
+
+  try {
+    // 3. جلب كافة سجلات الفواتير من جدول invoices مرتبة تسلسلياً حسب المعرف id
+    const { data, error } = await db
+      .from('invoices')
+      .select('*')
+      .order('id', { ascending: true });
+
+    // التحقق من وجود أي خطأ أثناء الاستعلام
+    if (error) throw error;
+
+    // 4. تحديد عنصر جسم الجدول (tbody) في الصفحة
+    const tbody = document.getElementById('invoices-tbody');
+    if (!tbody) return;
+
+    // 5. تفريغ محتوى الجدول القديم قبل إدراج البيانات الجديدة
+    tbody.innerHTML = '';
+
+    // 6. التحقق إن كان الجدول فارغاً في قاعدة البيانات
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 15px;">لا توجد فواتير مسجلة حتى الآن</td></tr>';
+    } else {
+      // 7. المرور على كل فاتورة وبناء السطر الخاص بها
+      data.forEach((inv, index) => {
+        // استخراج قيمة الدين وتحويلها إلى رقم
+        const debtVal = Number(inv.debt) || 0;
+
+        // تحديد لون خط خانة الدين تلقائياً:
+        // - أحمر (#e74c3c): إذا كان على الزبون دين متبقي (أكبر من 0)
+        // - أزرق (#2980b9): إذا كان للزبون رصيد زائد مدفوع مسبقاً (أقل من 0)
+        // - أخضر (#27ae60): إذا كان الحساب مصفى تماماً (يساوي 0)
+        const debtColor = debtVal > 0 ? '#e74c3c' : (debtVal < 0 ? '#2980b9' : '#27ae60');
+
+        // إدراج السطر داخل الجدول بالترتيب المطابق لملف الإكسيل
+        tbody.innerHTML += `
+          <tr>
+            <!-- الرقم التسلسلي التلقائي -->
+            <td style="font-weight: bold;">${index + 1}</td>
+
+            <!-- إسم الزبون أو الموزع -->
+            <td style="font-weight: bold;">${inv.customer_name || ''}</td>
+
+            <!-- رقم الفاتورة المركب -->
+            <td>${inv.invoice_number || ''}</td>
+
+            <!-- مبلغ الفاتورة الإجمالي مع التنسيق بالألف دج -->
+            <td style="font-weight: bold;">${Number(inv.invoice_amount || 0).toLocaleString()} دج</td>
+
+            <!-- تاريخ تحرير الفاتورة -->
+            <td>${inv.invoice_date || '-'}</td>
+
+            <!-- القيمة المدفوعة (باللون الأخضر) -->
+            <td style="color: #27ae60; font-weight: bold;">${Number(inv.paid_amount || 0).toLocaleString()} دج</td>
+
+            <!-- تاريخ تسديد الدفعة -->
+            <td>${inv.payment_date || '-'}</td>
+
+            <!-- الدين المتبقي مع اللون المناسب للحالة -->
+            <td style="font-weight: bold; color: ${debtColor};">${debtVal.toLocaleString()} دج</td>
+
+            <!-- خانة الملاحظات (مثل بونيس، إرجاع سلع، روثور...) -->
+            <td style="color: #c0392b; font-size: 13px;">${inv.notes || ''}</td>
+          </tr>
+        `;
+      });
+    }
+  } catch (err) {
+    // عرض رسالة تنبيه في حال حدوث أي خطأ في الاتصال
+    showAlert("حدث خطأ أثناء تحميل جدول الفواتير: " + err.message);
+  } finally {
+    // 8. إيقاف مؤشر التحميل بعد انتهاء العملية سواء بنجاح أو بخطأ
+    showLoader(false);
+  }
+}
