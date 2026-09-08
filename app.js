@@ -793,11 +793,14 @@ function showProductionCostView() {
 }
 
 /**
- * إضافة سطر مكون ديناميكي جديد في جدول تكلفة الإنتاج
+ * إضافة سطر مكون ديناميكي جديد في جدول تكلفة الإنتاج (مع الإضافة التلقائية عند آخر خانة)
  */
 function addIngredientRow() {
   const container = document.getElementById('cost-ingredients-container');
   const row = document.createElement('div');
+  const rowId = 'cost-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  
+  row.id = rowId;
   row.className = 'cost-row';
   row.style = 'display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 40px; gap: 10px; margin-bottom: 10px; align-items: center;';
 
@@ -805,7 +808,7 @@ function addIngredientRow() {
     <input type="text" class="form-control ing-name" placeholder="اسم المكون (فرينة، سكر...)">
     <input type="number" class="form-control ing-total" placeholder="الكمية الكلية" style="text-align: center;">
     <input type="number" class="form-control ing-rem" placeholder="الباقي" style="text-align: center;">
-    <input type="number" class="form-control ing-price" placeholder="سعر الوحدة (دج)" style="text-align: center;">
+    <input type="number" class="form-control ing-price" placeholder="سعر الوحدة (دج)" style="text-align: center;" oninput="handleAutoAddCostRow('${rowId}')">
     <button type="button" class="btn-action" style="background: #e74c3c; height: 38px;" onclick="this.parentElement.remove()">
       <i class="fa-solid fa-xmark"></i>
     </button>
@@ -813,6 +816,26 @@ function addIngredientRow() {
   container.appendChild(row);
 }
 
+/**
+ * التحقق من الكتابة في خانة "سعر الوحدة" للسطر الأخير في جدول التكلفة، وإضافة سطر جديد تلقائياً
+ * @param {string} currentRowId - معرف السطر الحالي
+ */
+function handleAutoAddCostRow(currentRowId) {
+  const container = document.getElementById('cost-ingredients-container');
+  const allRows = container.querySelectorAll('.cost-row');
+  
+  if (allRows.length === 0) return;
+
+  // التحقق إن كان السطر الحالي هو السطر الأخير في قائمة المكونات
+  const lastRow = allRows[allRows.length - 1];
+  if (lastRow.id === currentRowId) {
+    const priceInput = lastRow.querySelector('.ing-price');
+    // إذا تم إدخال سعر أكبر من صفر، يضاف سطر مكون جديد تلقائياً
+    if (priceInput && Number(priceInput.value) > 0) {
+      addIngredientRow();
+    }
+  }
+}
 /**
  * تجميع بيانات المكونات، حساب التكلفة، وإدراج المنتج مباشرة في جداول SQL والمخزن
  */
