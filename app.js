@@ -980,267 +980,214 @@ async function loadStockTable() {
   }
 }
 // =========================================================================
-// [11] إدارة وسجل الفواتير والدفعات والإغلاق السنوي المحمي بكلمة سر
+// [11] عرض سجل الفواتير والدفعات، خيارات الطباعة، والإغلاق السنوي
 // =========================================================================
 
-// -------------------------------------------------------------------------
-// إعدادات كلمات السر (يمكنك تغيير الأرقام من هنا متى شئت بسهولة)
-// -------------------------------------------------------------------------
-const SECURITY_CONFIG = {
-  adminPassword: "123",        // كلمة السر العامة للعمليات الإدارية
-  yearClosePassword: "123"     // كلمة السر المخصصة لتصفية السنة وتفريغ الفواتير
-};
-
 /**
- * 1. دالة فتح شاشة سجل الفواتير، تعبئة القوائم والتواريخ، وجلب البيانات من Supabase
+ * 1. فتح شاشة سجل الفواتير وعرض البيانات مع أزرار الطباعة
  */
 async function loadInvoicesTable() {
-  // إظهار شاشة الفواتير وإخفاء الشاشات الأخرى
   showView('view-invoices-table');
-  // تشغيل مؤشر التحميل الدائري
   showLoader(true);
 
-  // تعيين تاريخ اليوم كقيمة افتراضية في خانتي تاريخ الفاتورة وتاريخ الدفع
-  const today = new Date().toISOString().split('T')[0];
-  const dateInput = document.getElementById('inv-form-date');
-  const payDateInput = document.getElementById('inv-form-paydate');
-  if (dateInput) dateInput.value = today;
-  if (payDateInput) payDateInput.value = today;
-
-  // تعبئة القائمة المنسدلة بأسماء الزبائن من الذاكرة المؤقتة
-  const custSelect = document.getElementById('inv-form-customer');
-  if (custSelect) {
-    custSelect.innerHTML = '<option value="">-- اختر الزبون --</option>';
-    customersCache.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.name;
-      opt.innerText = c.name;
-      custSelect.appendChild(opt);
-    });
-  }
-
-  // جلب سجلات الفواتير من جدول invoices في Supabase
   try {
     const { data, error } = await db
       .from('invoices')
       .select('*')
-      .order('id', { ascending: true }); // ترتيب تصاعدي حسب أسبقية التسجيل
+      .order('id', { ascending: true });
 
     if (error) throw error;
 
     const tbody = document.getElementById('invoices-tbody');
     if (!tbody) return;
 
-    // تفريغ محتويات الجدول السابقة لمنع التكرار
     tbody.innerHTML = '';
-
-    // في حال عدم وجود أي فاتورة مسجلة
     if (!data || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 15px; color: #7f8c8d;">لا توجد فواتير مسجلة بعد، يمكنك إدخال أول فاتورة من النموذج أعلاه</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding: 15px; color: #7f8c8d;">لا توجد فواتير مسجلة حتى الآن</td></tr>';
     } else {
-      // بناء أسطر الجدول وتلوين حالة الدين ديناميكياً
       data.forEach((inv, index) => {
         const debtVal = Number(inv.debt) || 0;
-        // أحمر إذا كان ديناً متبقياً، أزرق إذا كان دفعاً زائداً، أخضر إذا كان خالصاً (0)
         const debtColor = debtVal > 0 ? '#e74c3c' : (debtVal < 0 ? '#2980b9' : '#27ae60');
 
         tbody.innerHTML += `
           <tr>
-            <!-- الرقم التسلسلي للسطر -->
             <td style="font-weight: bold;">${index + 1}</td>
-            <!-- إسم الزبون -->
             <td style="font-weight: bold;">${inv.customer_name || ''}</td>
-            <!-- رقم الفاتورة -->
             <td>${inv.invoice_number || ''}</td>
-            <!-- مبلغ الفاتورة الإجمالي -->
             <td style="font-weight: bold;">${Number(inv.invoice_amount || 0).toLocaleString()} دج</td>
-            <!-- تاريخ الفاتورة -->
             <td>${inv.invoice_date || '-'}</td>
-            <!-- القيمة المدفوعة بالأخضر -->
             <td style="color: #27ae60; font-weight: bold;">${Number(inv.paid_amount || 0).toLocaleString()} دج</td>
-            <!-- تاريخ الدفع -->
             <td>${inv.payment_date || '-'}</td>
-            <!-- الدين المتبقي باللون المناسب -->
             <td style="font-weight: bold; color: ${debtColor};">${debtVal.toLocaleString()} دج</td>
-            <!-- الملاحظات -->
             <td style="color: #c0392b; font-size: 13px;">${inv.notes || ''}</td>
+            
+            <!-- أزرار الطباعة (وصل الطلب + فاتورة الطريق) -->
+            <td style="white-space: nowrap;">
+              <button class="btn-action" style="background: #2980b9; padding: 5px 8px; font-size: 12px; margin-left: 4px;" 
+                onclick="printOrderReceipt('${inv.invoice_number}', '${inv.customer_name}')" title="طباعة وصل الطلب">
+                <i class="fa-solid fa-receipt"></i> وصل الطلب
+              </button>
+              
+              <button class="btn-action" style="background: #8e44ad; padding: 5px 8px; font-size: 12px;" 
+                onclick="printRoadInvoice('${inv.invoice_number}', '${inv.customer_name}')" title="طباعة فاتورة الطريق">
+                <i class="fa-solid fa-truck-moving"></i> فاتورة الطريق
+              </button>
+            </td>
           </tr>
         `;
       });
     }
   } catch (err) {
-    showAlert("حدث خطأ أثناء تحميل الفواتير: " + err.message);
+    showAlert("حدث خطأ أثناء تحميل سجل الفواتير: " + err.message);
   } finally {
-    // إخفاء مؤشر التحميل بعد الانتهاء
     showLoader(false);
   }
 }
 
 /**
- * 2. دالة توليد رقم الفاتورة المركب تلقائياً عند اختيار الزبون
- * التركيبة: السنة الحالية (4 أرقام) + رقم الزبون التسلسلي (3 أرقام) + رقم الفاتورة التسلسلي (3 أرقام)
+ * 2. دالة طباعة وصل الطلب (Bon de Commande / Livraison)
+ * جاهزة للربط مع قالب وتصميم الطباعة المخصص
  */
-function onInvoiceCustomerSelect(custName) {
-  const numInput = document.getElementById('inv-form-num');
-  if (!custName) {
-    if (numInput) numInput.value = '';
-    return;
-  }
-
-  // البحث عن الزبون لمعرفة ترتيبه في القائمة وآخر رقم تسلسلي لفواتيره
-  const custIndex = customersCache.findIndex(c => c.name === custName);
-  const found = customersCache[custIndex];
-
-  if (found && custIndex !== -1) {
-    const currentYear = new Date().getFullYear();
-    const customerCode = String(custIndex + 1).padStart(3, '0');
-    const invoiceSeq = String((found.lastInvoiceSeq || 0) + 1).padStart(3, '0');
-    if (numInput) numInput.value = `${currentYear}${customerCode}${invoiceSeq}`;
-  }
-}
-
-/**
- * 3. دالة حساب الدين المتبقي تلقائياً في النموذج أثناء كتابة المبالغ
- * المعادلة: الدين = مبلغ الفاتورة - المدفوع
- */
-function calcFormDebt() {
-  const amount = Number(document.getElementById('inv-form-amount').value) || 0;
-  const paid = Number(document.getElementById('inv-form-paid').value) || 0;
-  const debt = amount - paid;
-  document.getElementById('inv-form-debt').value = debt;
-}
-
-/**
- * 4. دالة حفظ الفاتورة الجديدة في Supabase وتحديث رصيد الزبون
- */
-async function submitNewInvoiceRow() {
-  // قراءة القيم المدخلة في النموذج
-  const customer = document.getElementById('inv-form-customer').value;
-  const invNum = document.getElementById('inv-form-num').value.trim();
-  const amount = Number(document.getElementById('inv-form-amount').value) || 0;
-  const invDate = document.getElementById('inv-form-date').value;
-  const paid = Number(document.getElementById('inv-form-paid').value) || 0;
-  const payDate = document.getElementById('inv-form-paydate').value;
-  const debt = Number(document.getElementById('inv-form-debt').value) || 0;
-  const notes = document.getElementById('inv-form-notes').value.trim();
-
-  // التحقق من إدخال الحقول الإجبارية
-  if (!customer) {
-    showAlert("يرجى اختيار اسم الزبون أولاً!");
-    return;
-  }
-  if (!invNum) {
-    showAlert("يرجى التأكد من وجود رقم الفاتورة!");
-    return;
-  }
-
+async function printOrderReceipt(invoiceNum, customerName) {
   showLoader(true);
   try {
-    // خطوة أ: إدخال الفاتورة في جدول invoices
-    const { error } = await db.from('invoices').insert([{
-      customer_name: customer,
-      invoice_number: invNum,
-      invoice_amount: amount,
-      invoice_date: invDate,
-      paid_amount: paid,
-      payment_date: payDate,
-      debt: debt,
-      notes: notes
-    }]);
+    // جلب تفاصيل السلع الخاصة بهذا الوصل من جدول invoice_operations
+    const { data: items, error } = await db
+      .from('invoice_operations')
+      .select('*')
+      .eq('invoice_number', invoiceNum);
 
     if (error) throw error;
 
-    // خطوة ب: تحديث عداد فواتير الزبون ورصيد الكريدي في جدول customers
-    const cust = customersCache.find(c => c.name === customer);
-    if (cust) {
-      await db.from('customers').update({
-        last_invoice_seq: (cust.lastInvoiceSeq || 0) + 1,
-        old_credit: debt
-      }).eq('id', cust.id);
+    // فتح نافذة المعاينة والطباعة
+    const printWindow = window.open('', '', 'width=800,height=600');
+    let itemsRowsHtml = '';
+    
+    if (items && items.length > 0) {
+      items.forEach((it, idx) => {
+        itemsRowsHtml += `
+          <tr>
+            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${idx + 1}</td>
+            <td style="border:1px solid #ddd; padding:8px;">${it.product_name}</td>
+            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${it.quantity}</td>
+            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${Number(it.price).toLocaleString()} دج</td>
+            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${Number(it.quantity * it.price).toLocaleString()} دج</td>
+          </tr>
+        `;
+      });
     }
 
-    showAlert("تم تسجيل الفاتورة بنجاح!");
+    printWindow.document.write(`
+      <html dir="rtl" lang="ar">
+      <head>
+        <title>وصل طلب - ${invoiceNum}</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; }
+          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          th { background: #f2f2f2; border: 1px solid #ddd; padding: 8px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>Houtane Sweets - حلويات هتان</h2>
+          <h3>وصل تسليم وطلب رقم: ${invoiceNum}</h3>
+          <p><strong>اسم الزبون / الموزع:</strong> ${customerName}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>المنتج</th>
+              <th>الكمية</th>
+              <th>السعر الفردي</th>
+              <th>المجموع</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsRowsHtml || '<tr><td colspan="5" style="text-align:center;">لا توجد تفاصيل سلع مسجلة لهذا الرقم</td></tr>'}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `);
 
-    // تفريغ الحقول لإتاحة إدخال جديد
-    document.getElementById('inv-form-amount').value = '';
-    document.getElementById('inv-form-paid').value = '';
-    document.getElementById('inv-form-debt').value = '';
-    document.getElementById('inv-form-notes').value = '';
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); }, 500);
 
-    // إعادة تحميل البيانات وعرض السطر الجديد في الجدول
-    await preloadData();
-    await loadInvoicesTable();
   } catch (err) {
-    showAlert("حدث خطأ أثناء حفظ الفاتورة: " + err.message);
+    showAlert("حدث خطأ أثناء إعداد وصل الطلب للطباعة: " + err.message);
   } finally {
     showLoader(false);
   }
 }
 
 /**
- * 5. دالة الإغلاق السنوي وتصفية الحسابات (محمية بكلمة مرور):
- * - تطلب كلمة السر من المسؤول.
- * - تحسب آخر دين وصل إليه كل زبون من جدول الفواتير.
- * - تنقل هذا الدين إلى خانة (old_credit) في بطاقة كل زبون في جدول customers.
- * - تصفر عداد الفواتير (last_invoice_seq) لكل زبون لتبدأ السنة الجديدة من 1.
- * - تمسح وتفرغ جدول الفواتير invoices بالكامل لبدء العام الجديد بسجل نظيف.
+ * 3. دالة طباعة فاتورة الطريق (Bon de Route / Facture)
+ * مهيأة لعرض خط السير، رقم الوصل، والمبالغ الإجمالية
  */
-async function closeYearAndCarryOverDebt() {
-  // طلب كلمة المرور
-  const enteredPass = prompt("عملية إدارية حساسة: أدخل كلمة المرور لتأكيد إغلاق السنة، نقل ديون الزبائن، وتفريغ الفواتير:");
-  
-  // في حال ضغط المستخدم على إلغاء
-  if (enteredPass === null) return;
-  
-  // التحقق من صحة كلمة المرور المدخلة
-  if (enteredPass !== SECURITY_CONFIG.yearClosePassword) {
-    showAlert("كلمة المرور غير صحيحة! تم إلغاء العملية.");
-    return;
-  }
-
+async function printRoadInvoice(invoiceNum, customerName) {
   showLoader(true);
   try {
-    // خطوة 1: جلب كافة الفواتير لمعرفة الرصيد النهائي لكل زبون
-    const { data: allInvoices, error: invErr } = await db
+    // جلب بيانات الفاتورة المحددة
+    const { data: invData, error } = await db
       .from('invoices')
       .select('*')
-      .order('id', { ascending: true });
+      .eq('invoice_number', invoiceNum)
+      .single();
 
-    if (invErr) throw invErr;
+    if (error) throw error;
 
-    // تجميع آخر قيمة دين وصل إليها كل زبون
-    const customerFinalDebts = {};
-    if (allInvoices && allInvoices.length > 0) {
-      allInvoices.forEach(inv => {
-        customerFinalDebts[inv.customer_name] = Number(inv.debt) || 0;
-      });
-    }
+    const printWindow = window.open('', '', 'width=800,height=600');
+    printWindow.document.write(`
+      <html dir="rtl" lang="ar">
+      <head>
+        <title>فاتورة الطريق - ${invoiceNum}</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; }
+          .header { text-align: center; border-bottom: 2px solid #8e44ad; padding-bottom: 10px; margin-bottom: 20px; }
+          .info-box { margin-bottom: 15px; font-size: 15px; line-height: 1.8; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+          th { background: #8e44ad; color: white; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>Houtane Sweets - فاتورة الطريق والنقل</h2>
+          <h4>رقم الوصل: ${invData.invoice_number} | التاريخ: ${invData.invoice_date || '-'}</h4>
+        </div>
+        <div class="info-box">
+          <p><strong>الموزع / الزبون:</strong> ${invData.customer_name}</p>
+          <p><strong>ملاحظات التوزيع:</strong> ${invData.notes || 'لا توجد'}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>المبلغ الإجمالي المطلوب</th>
+              <th>المبلغ المدفوع</th>
+              <th>الرصيد المتبقي (دين)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-weight:bold;">${Number(invData.invoice_amount || 0).toLocaleString()} دج</td>
+              <td style="color:green; font-weight:bold;">${Number(invData.paid_amount || 0).toLocaleString()} دج</td>
+              <td style="color:red; font-weight:bold;">${Number(invData.debt || 0).toLocaleString()} دج</td>
+            </tr>
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `);
 
-    // خطوة 2: تحديث جدول الزبائن ونقل الديون وتصفير عداد الفواتير
-    for (const cust of customersCache) {
-      // إذا كان للزبون فواتير نعتمد آخر دين، وإلا نترك دينه السابق كما هو
-      const finalDebt = customerFinalDebts.hasOwnProperty(cust.name) 
-        ? customerFinalDebts[cust.name] 
-        : (cust.oldCredit || 0);
-
-      await db.from('customers').update({
-        old_credit: finalDebt,
-        last_invoice_seq: 0 // تصفير العداد لبدء التسلسل من جديد للعام الجديد
-      }).eq('id', cust.id);
-    }
-
-    // خطوة 3: تفريغ ومسح كل السجلات من جدول الفواتير invoices
-    const { error: delErr } = await db.from('invoices').delete().neq('id', 0);
-    if (delErr) throw delErr;
-
-    showAlert("تم إغلاق السنة بنجاح! تم نقل الديون النهائية لبطاقات الزبائن وتفريغ سجل الفواتير للعام الجديد.");
-
-    // تحديث الواجهة والبيانات
-    await preloadData();
-    await loadInvoicesTable();
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); }, 500);
 
   } catch (err) {
-    showAlert("حدث خطأ أثناء إغلاق السنة: " + err.message);
+    showAlert("حدث خطأ أثناء إعداد فاتورة الطريق: " + err.message);
   } finally {
     showLoader(false);
   }
