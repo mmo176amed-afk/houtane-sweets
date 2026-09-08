@@ -8,7 +8,7 @@ let costIngredientRowCount = 0;
 let isCostEditMode = false;
 
 /**
- * 1. فتح واجهة التكلفة وجلب أسماء المنتجات مباشرة من قاعدة البيانات
+ * 1. فتح شاشة التكلفة وجلب أسماء المنتجات مباشرة من قاعدة البيانات
  */
 async function showProductionCostView() {
   showView('view-cost-calculation');
@@ -144,7 +144,7 @@ function removeCostIngredientRow(rowId) {
 }
 
 /**
- * 6. جلب بيانات المكونات فور اختيار الحلوى من القائمة المنسدلة
+ * 6. جلب بيانات المكونات فور اختيار الحلوى من القائمة المنسدلة (بدون أخطاء)
  */
 async function onCostProductSelectChanged(prodName) {
   if (!prodName) {
@@ -169,13 +169,15 @@ async function onCostProductSelectChanged(prodName) {
 
   showLoader(true);
   try {
-    const { data, error } = await db
+    // جلب البيانات كمصفوفة لتفادي خطأ no rows returned
+    const { data: rowsData, error } = await db
       .from('production_costs')
       .select('*')
-      .eq('product_name', prodName)
-      .maybeSingle();
+      .eq('product_name', prodName);
 
     if (error) throw error;
+
+    const data = (rowsData && rowsData.length > 0) ? rowsData[0] : null;
 
     const statusMsg = document.getElementById('cost-status-msg');
     const cancelBtn = document.getElementById('btn-cancel-cost-edit');
@@ -193,11 +195,13 @@ async function onCostProductSelectChanged(prodName) {
         submitBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> حفظ وتحديث التعديلات';
       }
 
+      // تعبئة بيانات التعليب
       const pkg = data.packaging_data || {};
       document.getElementById('pkg-total').value = pkg.total !== undefined ? pkg.total : '';
       document.getElementById('pkg-rem').value = pkg.remaining !== undefined ? pkg.remaining : '';
       document.getElementById('pkg-price').value = pkg.unit_price !== undefined ? pkg.unit_price : '';
 
+      // تعبئة سطور المكونات
       const container = document.getElementById('cost-ingredients-container');
       container.innerHTML = '';
       costIngredientRowCount = 0;
@@ -208,7 +212,7 @@ async function onCostProductSelectChanged(prodName) {
           addCostIngredientRow(ing.name || '', ing.total || '', ing.remaining || '', ing.unit_price || '');
         });
       }
-      addCostIngredientRow();
+      addCostIngredientRow(); // سطر إضافي فارغ
 
     } else {
       isCostEditMode = false;
