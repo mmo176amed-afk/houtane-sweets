@@ -441,15 +441,23 @@
         </button>
       </div>
 
-      <div class="table-container">
-        <table>
+      <div class="table-container" style="overflow-x: auto;">
+        <table style="min-width: 1250px; text-align: center;">
           <thead>
             <tr>
               <th>الرقم</th>
               <th>اسم المنتج</th>
+              <th style="background: #34495e; color: white;">تاريخ الإدخال / أوقفت يوم</th>
+              <th style="background: #2c3e50; color: white;">حالة المخزن</th>
               <th>سعر الجملة</th>
               <th>سعر التجزئة</th>
-              <th>الكمية المتوفرة</th>
+              <th style="color: #27ae60;">المنتجة (+)</th>
+              <th style="color: #e67e22;">مباعة جملة (-)</th>
+              <th style="color: #c0392b;">هدايا+تالفة (-)</th>
+              <th style="color: #2980b9;">مسترجعة (+)</th>
+              <th style="color: #8e44ad;">مباعة تجزئة (-)</th>
+              <th style="background: #16a085; color: white;">الحقيقي بالمخزن</th>
+              <th>فارق التقييم</th>
             </tr>
           </thead>
           <tbody id="stock-tbody"></tbody>
