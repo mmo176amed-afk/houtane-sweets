@@ -194,7 +194,7 @@
   </div>
 
   <!-- ======================================================================= -->
-  <!-- [5] واجهة وصل جديد والعمليات على المنتجات (مع البحث، التعديل، والحساب التلقائي) -->
+  <!-- [5] واجهة وصل جديد والعمليات على المنتجات -->
   <!-- ======================================================================= -->
   <div id="view-invoice-ops" class="view-section">
     <div class="card">
@@ -238,7 +238,7 @@
         </div>
         <div>
           <label>الكريدي القديم (دج):</label>
-          <input type="number" id="inv-old-credit-val" class="form-control" readonly style="background: #edf2f7; font-weight: bold; color: var(--danger);" value="0">
+          <input type="text" id="inv-old-credit-val" class="form-control" readonly style="background: #edf2f7; font-weight: bold; color: var(--danger); text-align: center;" value="0.00">
         </div>
       </div>
 
@@ -270,9 +270,7 @@
         </button>
       </div>
 
-      <!-- ----------------------------------------------------------------- -->
       <!-- صندوق الحسابات الرياضية التلقائية الشاملة -->
-      <!-- ----------------------------------------------------------------- -->
       <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin-top: 20px;">
         <h4 style="margin-bottom: 12px; color: var(--primary);">
           <i class="fa-solid fa-calculator"></i> ملخص الحساب التلقائي للوصل
@@ -283,31 +281,31 @@
           <!-- 1. قيمة المنتجات الموجودة في الوصل (تلقائي) -->
           <div>
             <label style="font-size: 13px; font-weight: bold;">قيمة منتجات الوصل (دج):</label>
-            <input type="number" id="inv-total-goods" class="form-control" value="0" readonly style="background: #eef2f7; font-weight: bold; color: #2c3e50;">
+            <input type="text" id="inv-total-goods" class="form-control" value="0.00" readonly style="background: #eef2f7; font-weight: bold; color: #2c3e50; text-align: center;">
           </div>
 
-          <!-- 2. الخانة الإضافية الاحتياطية (مسترجع، خصم، بونيس، مصاريف) -->
+          <!-- 2. الخانة الإضافية الاحتياطية -->
           <div>
             <label style="font-size: 13px; font-weight: bold; color: #8e44ad;">قيمة إضافية / تسوية (دج):</label>
-            <input type="number" id="inv-adjustment-amount" class="form-control" placeholder="0" oninput="calculateInvoiceFinancials()">
+            <input type="number" step="any" id="inv-adjustment-amount" class="form-control" placeholder="0" oninput="calculateInvoiceFinancials()">
           </div>
 
-          <!-- 3. خانة المجموع العام الصافي الشامل للقديم والجديد والتسوية (تلقائي) -->
+          <!-- 3. خانة المجموع العام الصافي الشامل -->
           <div>
             <label style="font-size: 13px; font-weight: bold; color: #d35400;">المجموع العام الصافي (دج):</label>
-            <input type="number" id="inv-grand-total" class="form-control" value="0" readonly style="background: #fff3e0; font-weight: bold; color: #d35400; font-size: 15px;">
+            <input type="text" id="inv-grand-total" class="form-control" value="0.00" readonly style="background: #fff3e0; font-weight: bold; color: #d35400; font-size: 15px; text-align: center;">
           </div>
 
           <!-- 4. القيمة المدفوعة نقداً يدوياً -->
           <div>
             <label style="font-size: 13px; font-weight: bold; color: #27ae60;">المدفوع نقداً (دج):</label>
-            <input type="number" id="inv-paid-amount" class="form-control" placeholder="0" oninput="calculateInvoiceFinancials()">
+            <input type="number" step="any" id="inv-paid-amount" class="form-control" placeholder="0" oninput="calculateInvoiceFinancials()">
           </div>
 
           <!-- 5. خانة الكريدي الجديد المتبقي (تلقائي) -->
           <div>
             <label style="font-size: 13px; font-weight: bold; color: #c0392b;">الكريدي الجديد المتبقي (دج):</label>
-            <input type="number" id="inv-new-debt" class="form-control" value="0" readonly style="background: #fde8e8; font-weight: bold; color: #c0392b; font-size: 16px;">
+            <input type="text" id="inv-new-debt" class="form-control" value="0.00" readonly style="background: #fde8e8; font-weight: bold; color: #c0392b; font-size: 16px; text-align: center;">
           </div>
 
           <!-- 6. خانة الملاحظات -->
@@ -397,13 +395,11 @@
         </button>
       </div>
 
-      <!-- حقل اسم المنتج -->
       <div class="form-group" style="margin-bottom: 20px;">
         <label style="font-weight: bold; font-size: 15px;">اسم المنتج الجديد:</label>
         <input type="text" id="cost-product-name" class="form-control" placeholder="اكتب اسم الحلوى أو الطارط (مثال: طارت كراميل)...">
       </div>
 
-      <!-- قسم إدخال المكونات المتتابعة -->
       <div style="border-top: 1px solid #e2e8f0; padding-top: 15px;">
         <h4 style="color: #34495e; margin-bottom: 10px;"><i class="fa-solid fa-list-check"></i> مكونات المنتج:</h4>
         <div id="cost-ingredients-container"></div>
@@ -413,7 +409,6 @@
         </button>
       </div>
 
-      <!-- قسم سطر التعليب المخصص للحسابات الرياضية -->
       <div style="margin-top: 25px; background: #fff8e1; padding: 15px; border-radius: 8px; border: 1px solid #ffe082;">
         <h4 style="color: #d35400; margin-bottom: 10px;">
           <i class="fa-solid fa-box"></i> بيانات سطر التعليب (إجباري لحساب سعر العلبة والحبة):
@@ -426,7 +421,6 @@
         </div>
       </div>
 
-      <!-- زر الحفظ وبناء الجدول بالشيت -->
       <div style="text-align: left; margin-top: 25px;">
         <button type="button" class="btn-action" style="background: #27ae60; width: 100%; font-size: 16px; padding: 12px;" onclick="submitProductionCost()">
           <i class="fa-solid fa-calculator"></i> إنشاء الجدول وحساب التكلفة في الشيت
@@ -470,26 +464,22 @@
   <div id="view-invoices-table" class="view-section">
     <div class="card">
       
-      <!-- رأس الواجهة -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
         <h3>
           <i class="fa-solid fa-file-invoice-dollar" style="color: var(--success);"></i> 
           سجل الفواتير والدفعات
         </h3>
         <div>
-          <!-- زر إغلاق السنة المالية ونقل الكريدي المتبقي لبطاقات الزبائن (محمي برقم سري) -->
           <button class="btn-action" style="background: #c0392b; margin-left: 8px;" onclick="closeYearAndCarryOverDebt()">
             <i class="fa-solid fa-calendar-check"></i> إغلاق السنة ونقل الكريدي
           </button>
           
-          <!-- زر الرجوع للرئيسية -->
           <button class="btn-action btn-secondary" onclick="showDashboard()">
             <i class="fa-solid fa-arrow-right"></i> رجوع
           </button>
         </div>
       </div>
 
-      <!-- جدول عرض الفواتير المنسق والمطابق لورقة العمل -->
       <div class="table-container">
         <table>
           <thead>
@@ -515,7 +505,7 @@
 
 </div>
 
-<!-- استدعاء مكتبة Supabase الرسمية وملفات المعالجة البرمجية المقسمة -->
+  <!-- استدعاء مكتبة Supabase الرسمية وملفات المعالجة البرمجية المقسمة -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/auth.js"></script>
