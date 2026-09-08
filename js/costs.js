@@ -1,61 +1,49 @@
 /**
  * =========================================================================
- * [الفقرة 7] حساب وتعديل تكلفة الإنتاج (البحث مباشرة من سجل التكاليف) (costs.js)
+ * [الفقرة 7] حساب تكلفة الإنتاج عبر القائمة المنسدلة والتعديل الفوري (costs.js)
  * =========================================================================
  */
 
 let costIngredientRowCount = 0;
 let isCostEditMode = false;
-let savedProductionCostsList = []; // قائمة المنتجات المسجلة في تكلفة الإنتاج
 
 /**
- * 1. فتح واجهة تكلفة الإنتاج وجلب قائمة بطاقات التكلفة المسجلة
+ * 1. فتح شاشة التكلفة وتعبئة القائمة بجميع المنتجات
  */
 async function showProductionCostView() {
   showView('view-cost-calculation');
   resetProductionCostForm();
-  await loadSavedCostsDropdown();
-}
 
-/**
- * 2. جلب وتعبئة القائمة المنسدلة من جدول تكلفة الإنتاج حصراً (production_costs)
- */
-async function loadSavedCostsDropdown() {
-  try {
-    const { data, error } = await db
-      .from('production_costs')
-      .select('product_name')
-      .order('product_name', { ascending: true });
+  const selectEl = document.getElementById('cost-product-select');
+  if (selectEl) {
+    selectEl.innerHTML = '<option value="">-- اختر الحلوى --</option>';
+    
+    // جلب المنتجات المتاحة من الذاكرة أو قاعدة البيانات مباشرة
+    (productsCache || []).forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      opt.innerText = p.name;
+      selectEl.appendChild(opt);
+    });
 
-    if (error) throw error;
-
-    savedProductionCostsList = data || [];
-    const selectEl = document.getElementById('cost-product-select');
-    if (selectEl) {
-      selectEl.innerHTML = '<option value="">-- اختر منتجاً مسجلاً في التكلفة للتعديل --</option>';
-      savedProductionCostsList.forEach(item => {
-        const opt = document.createElement('option');
-        opt.value = item.product_name;
-        opt.innerText = item.product_name;
-        selectEl.appendChild(opt);
-      });
-    }
-  } catch (err) {
-    console.error("خطأ أثناء جلب قائمة التكاليف:", err);
+    // خيار إضافي لإدخال منتج جديد غير مسجل
+    const newOpt = document.createElement('option');
+    newOpt.value = "__NEW__";
+    newOpt.innerText = "➕ [إضافة تكلفة لمنتج جديد...]";
+    newOpt.style.color = "#27ae60";
+    newOpt.style.fontWeight = "bold";
+    selectEl.appendChild(newOpt);
   }
 }
 
 /**
- * 3. إعادة ضبط الاستمارة وتفريغ الحقول
+ * 2. تصفير الحقول
  */
 function resetProductionCostForm() {
   isCostEditMode = false;
 
   const selectEl = document.getElementById('cost-product-select');
   if (selectEl) selectEl.value = '';
-
-  const nameInput = document.getElementById('cost-product-name');
-  if (nameInput) nameInput.value = '';
 
   const statusMsg = document.getElementById('cost-status-msg');
   if (statusMsg) {
@@ -87,7 +75,7 @@ function resetProductionCostForm() {
 }
 
 /**
- * 4. إضافة سطر مكون داخل جدول التكلفة
+ * 3. إضافة سطر مكون
  */
 function addCostIngredientRow(name = '', total = '', rem = '', price = '') {
   costIngredientRowCount++;
@@ -122,7 +110,7 @@ function addCostIngredientRow(name = '', total = '', rem = '', price = '') {
 }
 
 /**
- * 5. توليد سطر جديد تلقائياً عند كتابة السعر في السطر الأخير
+ * 4. إضافة سطر جديد تلقائياً عند كتابة السعر في السطر الأخير
  */
 function handleCostRowInput(currentRowId) {
   const rows = document.querySelectorAll('.cost-row-item');
@@ -140,7 +128,7 @@ function handleCostRowInput(currentRowId) {
 }
 
 /**
- * 6. حذف سطر مكون
+ * 5. حذف سطر مكون
  */
 function removeCostIngredientRow(rowId) {
   const row = document.getElementById(rowId);
@@ -148,12 +136,28 @@ function removeCostIngredientRow(rowId) {
 }
 
 /**
- * 7. جلب بطاقة التكلفة من جدول production_costs فور اختيار المنتج
+ * 6. جلب بيانات المكونات فور اختيار الحلوى من القائمة المنسدلة
  */
 async function onCostProductSelectChanged(prodName) {
   if (!prodName) {
     resetProductionCostForm();
     return;
+  }
+
+  // في حال اختيار إضافة منتج جديد
+  if (prodName === "__NEW__") {
+    const customName = prompt("اكتب اسم الحلوى الجديدة:");
+    if (!customName || !customName.trim()) {
+      document.getElementById('cost-product-select').value = '';
+      return;
+    }
+    const selectEl = document.getElementById('cost-product-select');
+    const opt = document.createElement('option');
+    opt.value = customName.trim();
+    opt.innerText = customName.trim();
+    selectEl.insertBefore(opt, selectEl.lastElementChild);
+    selectEl.value = customName.trim();
+    prodName = customName.trim();
   }
 
   showLoader(true);
@@ -166,69 +170,81 @@ async function onCostProductSelectChanged(prodName) {
 
     if (error) throw error;
 
+    const statusMsg = document.getElementById('cost-status-msg');
+    const cancelBtn = document.getElementById('btn-cancel-cost-edit');
+    const submitBtn = document.getElementById('btn-submit-cost');
+
     if (data) {
+      // إذا كان المنتج يحتوي على بطاقة تكلفة سابقة
       isCostEditMode = true;
-
-      // تثبيت اسم المنتج المختار في خانة الاسم
-      document.getElementById('cost-product-name').value = data.product_name;
-
-      // تفعيل وضع التعديل وتغيير لون الزر
-      const statusMsg = document.getElementById('cost-status-msg');
       if (statusMsg) {
         statusMsg.style.color = '#e67e22';
-        statusMsg.innerText = `✓ تم جلب بيانات (${data.product_name}) - يمكنك الآن تعديل أو حذف أو إضافة أي مكوّن.`;
+        statusMsg.innerText = `✓ تم تحميل مكونات (${prodName}) - يمكنك تعديل الكميات والأسعار ثم الحفظ.`;
       }
-
-      const cancelBtn = document.getElementById('btn-cancel-cost-edit');
       if (cancelBtn) cancelBtn.style.display = 'inline-block';
-
-      const submitBtn = document.getElementById('btn-submit-cost');
       if (submitBtn) {
         submitBtn.style.background = '#e67e22';
         submitBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> حفظ وتحديث التعديلات';
       }
 
-      // تعبئة خانات سطر التعليب
+      // تعبئة سطر التعليب
       const pkg = data.packaging_data || {};
       document.getElementById('pkg-total').value = pkg.total !== undefined ? pkg.total : '';
       document.getElementById('pkg-rem').value = pkg.remaining !== undefined ? pkg.remaining : '';
       document.getElementById('pkg-price').value = pkg.unit_price !== undefined ? pkg.unit_price : '';
 
-      // تفريغ الأسطر الحالية وبناء المكونات المسجلة بدقة
+      // تفريغ وتعبئة جدول المكونات
       const container = document.getElementById('cost-ingredients-container');
       container.innerHTML = '';
       costIngredientRowCount = 0;
 
-      const ingredientsList = Array.isArray(data.ingredients) ? data.ingredients : [];
-      if (ingredientsList.length > 0) {
-        ingredientsList.forEach(ing => {
+      const ingList = Array.isArray(data.ingredients) ? data.ingredients : [];
+      if (ingList.length > 0) {
+        ingList.forEach(ing => {
           addCostIngredientRow(ing.name || '', ing.total || '', ing.remaining || '', ing.unit_price || '');
         });
       }
-      // إضافة سطر فارغ في الأخير لتسهيل الإضافة المباشرة
-      addCostIngredientRow();
+      addCostIngredientRow(); // سطر فارغ إضافي
 
     } else {
-      showAlert("لم يتم العثور على بيانات هذا المنتج في تكلفة الإنتاج!");
+      // المنتج لم تسجل له تكلفة بعد
+      isCostEditMode = false;
+      if (statusMsg) {
+        statusMsg.style.color = '#27ae60';
+        statusMsg.innerText = `المنتج (${prodName}) جاهز لإدخال المكونات والتعليب لأول مرة.`;
+      }
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      if (submitBtn) {
+        submitBtn.style.background = '#27ae60';
+        submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> حفظ تكلفة الإنتاج';
+      }
+
+      const container = document.getElementById('cost-ingredients-container');
+      container.innerHTML = '';
+      costIngredientRowCount = 0;
+      addCostIngredientRow();
+      addCostIngredientRow();
+      addCostIngredientRow();
     }
   } catch (err) {
-    showAlert("حدث خطأ أثناء جلب بيانات التكلفة: " + err.message);
+    showAlert("حدث خطأ أثناء جلب تفاصيل التكلفة: " + err.message);
   } finally {
     showLoader(false);
   }
 }
 
 /**
- * 8. حفظ أو تحديث بطاقة التكلفة
+ * 7. حفظ التكلفة في قاعدة البيانات
  */
 async function submitProductionCost() {
-  const prodName = document.getElementById('cost-product-name').value.trim();
-  if (!prodName) {
-    showAlert("يرجى تحديد أو كتابة اسم المنتج أولاً!");
+  const selectEl = document.getElementById('cost-product-select');
+  const prodName = selectEl.value;
+
+  if (!prodName || prodName === "__NEW__") {
+    showAlert("يرجى اختيار اسم الحلوى أولاً!");
     return;
   }
 
-  // تجميع المكونات من الأسطر
   const ingredients = [];
   const rows = document.querySelectorAll('.cost-row-item');
   rows.forEach(r => {
@@ -238,16 +254,10 @@ async function submitProductionCost() {
     const price = parseFloat(r.querySelector('.ing-price')?.value) || 0;
 
     if (name) {
-      ingredients.push({
-        name: name,
-        total: total,
-        remaining: rem,
-        unit_price: price
-      });
+      ingredients.push({ name, total, remaining: rem, unit_price: price });
     }
   });
 
-  // بيانات سطر التعليب
   const pkgData = {
     total: parseFloat(document.getElementById('pkg-total')?.value) || 0,
     remaining: parseFloat(document.getElementById('pkg-rem')?.value) || 0,
@@ -256,34 +266,18 @@ async function submitProductionCost() {
 
   showLoader(true);
   try {
-    if (isCostEditMode) {
-      // تحديث السجل الموجود في جدول production_costs
-      const { error } = await db
-        .from('production_costs')
-        .update({
-          ingredients: ingredients,
-          packaging_data: pkgData
-        })
-        .eq('product_name', prodName);
+    const { error } = await db
+      .from('production_costs')
+      .upsert([{
+        product_name: prodName,
+        ingredients: ingredients,
+        packaging_data: pkgData
+      }], { onConflict: 'product_name' });
 
-      if (error) throw error;
-      showAlert(`تم تحديث تكلفة ومكونات (${prodName}) بنجاح!`);
-    } else {
-      // إدخال سجل تكلفة جديد
-      const { error } = await db
-        .from('production_costs')
-        .upsert([{
-          product_name: prodName,
-          ingredients: ingredients,
-          packaging_data: pkgData
-        }], { onConflict: 'product_name' });
+    if (error) throw error;
 
-      if (error) throw error;
-      showAlert(`تم حفظ تكلفة ومكونات (${prodName}) بنجاح!`);
-    }
-
+    showAlert(`تم حفظ تكلفة ومكونات (${prodName}) بنجاح!`);
     resetProductionCostForm();
-    await loadSavedCostsDropdown(); // تحديث القائمة بالمنتج الجديد/المعدل
     showDashboard();
 
   } catch (err) {
