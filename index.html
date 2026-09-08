@@ -429,25 +429,31 @@
     </div>
   </div>
 
-  <!-- ======================================================================= -->
+ <!-- ======================================================================= -->
   <!-- [8] جدول عرض حالة المخزون الحالي (Stock Status View) -->
   <!-- ======================================================================= -->
   <div id="view-stock-table" class="view-section">
     <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
         <h3><i class="fa-solid fa-warehouse" style="color: var(--secondary);"></i> حالة المخزون الحالية</h3>
-        <button class="btn-action btn-secondary" onclick="showDashboard()">
-          <i class="fa-solid fa-arrow-right"></i> رجوع
-        </button>
+        
+        <!-- خانة التاريخ المستقلة في الأعلى بجانب زر الرجوع -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label style="font-weight: bold; color: #2c3e50; font-size: 14px;">أوقفت يوم:</label>
+          <input type="date" id="stock-stop-date" class="form-control" style="width: 160px; padding: 4px 8px;" onchange="saveStockStopDate(this.value)">
+          <button class="btn-action btn-secondary" onclick="showDashboard()">
+            <i class="fa-solid fa-arrow-right"></i> رجوع
+          </button>
+        </div>
       </div>
 
+      <!-- جدول المخزن المنظم (12 عموداً متطابقاً بدقة) -->
       <div class="table-container" style="overflow-x: auto;">
-        <table style="min-width: 1250px; text-align: center;">
+        <table style="min-width: 1200px; text-align: center;">
           <thead>
             <tr>
               <th>الرقم</th>
               <th>اسم المنتج</th>
-              <th style="background: #34495e; color: white;">تاريخ الإدخال / أوقفت يوم</th>
               <th style="background: #2c3e50; color: white;">حالة المخزن</th>
               <th>سعر الجملة</th>
               <th>سعر التجزئة</th>
@@ -465,7 +471,7 @@
       </div>
     </div>
   </div>
-
+  
   <!-- ======================================================================= -->
   <!-- [9] واجهة سجل الفواتير والدفعات مع أزرار الطباعة والإغلاق السنوي -->
   <!-- ======================================================================= -->
