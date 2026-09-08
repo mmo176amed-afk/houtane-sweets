@@ -12,7 +12,7 @@
 // الرابط المباشر لمشروعك على Supabase
 const SUPABASE_URL = 'https://ntvmrdwwnjqunsagritz.supabase.co';
 
-// المفتاح العام الآمن (Anon / Publishable Key) الخاص بالمشروع
+// المفتاح العام الآمن (Publishable Key) الخاص بالمشروع
 const SUPABASE_KEY = 'sb_publishable_DQ6yB5s9oLL_jxiWZKB9gQ_Pa0uwIRW';
 
 // تهيئة عميل الاتصال بقاعدة البيانات
@@ -22,7 +22,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 console.log("Supabase Client Connected Successfully!");
 
 // =========================================================================
-// [2] متغيرات الذاكرة المؤقتة العامة (Global Cache Variables)
+// [2] متغيرات الذاكرة المؤقتة العامة وإعدادات الأمان
 // =========================================================================
 
 // تخزين بيانات المستخدم المسجل حالياً (الاسم والصلاحية)
@@ -34,13 +34,27 @@ let productsCache = [];
 // مصفوفة الذاكرة المؤقتة لقائمة الزبائن والموزعين
 let customersCache = [];
 
+// متغير نوع العملية الحالية داخل الوصل
+let currentInvoiceOperationType = 'وصل جديد (توزيع)';
+
+// عداد أسطر المنتجات في الوصل
+let invoiceItemRowCount = 0;
+
+// متغير لتحديد هل نحن في وضع إنشاء وصل جديد أو تعديل وصل سابق
+let isEditMode = false;
+
+// إعدادات كلمات السر للعمليات الحساسة
+const SECURITY_CONFIG = {
+  adminPassword: "123",        // كلمة السر العامة
+  yearClosePassword: "123"     // كلمة السر المخصصة للإغلاق السنوي وتصفية السجل
+};
+
 // =========================================================================
 // [3] دوال التحكم العامة: مؤشر التحميل، التنبيهات، والتنقل بين الواجهات
 // =========================================================================
 
 /**
- * إظهار أو إخفاء مؤشر التحميل الدائري (Spinner Loader)
- * @param {boolean} show - القيمة true للإظهار و false للإخفاء
+ * إظهار أو إخفاء مؤشر التحميل الدائري
  */
 function showLoader(show) {
   const loader = document.getElementById('loader');
@@ -49,17 +63,13 @@ function showLoader(show) {
 
 /**
  * التبديل بين شاشات وواجهات التطبيق المختلفة
- * @param {string} viewId - المعرف (ID) الخاص بالواجهة المراد فتحها
  */
 function showView(viewId) {
-  // إخفاء كل الواجهات النشطة
   document.querySelectorAll('.view-section').forEach(el => el.classList.remove('view-active'));
-  
-  // إظهار الواجهة المطلوبة
   const target = document.getElementById(viewId);
   if (target) target.classList.add('view-active');
 
-  // في حال فتح شاشة إضافة منتج، نقوم بتحديث القائمة المقترحة
+  // تحديث القوائم المقترحة عند فتح إضافة المنتجات
   if (viewId === 'view-add-product') {
     populateProductDatalist();
   }
@@ -74,7 +84,6 @@ function showDashboard() {
 
 /**
  * عرض رسائل التنبيه للمستخدم
- * @param {string} message - نص الرسالة
  */
 function showAlert(message) {
   alert(message);
@@ -91,21 +100,17 @@ async function handleLogin() {
   const user = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value.trim();
 
-  // التحقق من ملء الحقول
   if (!user || !pass) {
     showAlert("يرجى إدخال اسم المستخدم وكلمة المرور!");
     return;
   }
 
-  // التحقق من مطابقة بيانات الدخول للمدير
   if (user === 'admin' && pass === '1234') {
     currentUser = { user: 'admin', role: 'Admin' };
     
-    // عرض شارة المستخدم المسجل في أعلى الصفحة
     const badge = document.getElementById('user-badge');
     if (badge) badge.innerText = `${currentUser.user} (${currentUser.role})`;
     
-    // الانتقال للوحة التحكم وبدء جلب البيانات
     showView('view-dashboard');
     await preloadData();
   } else {
@@ -114,7 +119,7 @@ async function handleLogin() {
 }
 
 /**
- * تسجيل الخروج وإعادة تعيين الحقول إلى الشاشة الافتتاحية
+ * تسجيل الخروج
  */
 function logout() {
   currentUser = null;
@@ -124,19 +129,18 @@ function logout() {
 }
 
 /**
- * جلب المنتجات (من جدولي المنتجات وتكاليف الإنتاج معاً) والزبائن إلى الذاكرة
+ * جلب المنتجات والزبائن إلى الذاكرة المؤقتة للتطبيق
  */
 async function preloadData() {
   showLoader(true);
   try {
-    // 1. جلب المنتجات المسجلة في جدول المنتجات الرئيسي products
+    // 1. جلب المنتجات المسجلة في جدول products
     const { data: prods, error: pErr } = await db.from('products').select('*').order('id', { ascending: true });
     if (pErr) throw pErr;
 
-    // 2. جلب كافة أسماء المنتجات الموجودة في جدول تكلفة الإنتاج production_costs
+    // 2. جلب أسماء المنتجات من جدول production_costs
     const { data: costProds } = await db.from('production_costs').select('product_name');
     
-    // بناء مصفوفة المنتجات الأساسية الموحدة
     const mainList = (prods || []).map(p => ({
       id: p.id,
       name: (p.name || '').trim(),
@@ -145,7 +149,6 @@ async function preloadData() {
       retailPrice: Number(p.retail_price) || 0
     }));
 
-    // دمج أسماء المنتجات من جدول التكلفة تلقائياً إن لم تكن مسجلة بعد في products
     if (costProds && costProds.length > 0) {
       const existingNames = new Set(mainList.map(p => p.name.toLowerCase()));
       costProds.forEach(cp => {
@@ -163,10 +166,9 @@ async function preloadData() {
       });
     }
 
-    // حفظ القائمة الشاملة في الذاكرة المؤقتة
     productsCache = mainList;
 
-    // 3. جلب قائمة الزبائن والموزعين من جدول customers
+    // 3. جلب قائمة الزبائن من جدول customers
     const { data: custs, error: cErr } = await db.from('customers').select('*').order('id', { ascending: true });
     if (cErr) throw cErr;
 
@@ -177,7 +179,6 @@ async function preloadData() {
       lastInvoiceSeq: Number(c.last_invoice_seq) || 0
     }));
 
-    // تحديث القوائم المنسدلة في الواجهات
     populateProductDatalist();
   } catch (e) {
     console.error("Error preloading data:", e);
@@ -188,21 +189,155 @@ async function preloadData() {
 }
 
 // =========================================================================
-// [5] إدارة الوصل، العمليات، الحسابات التلقائية، والبحث والتعديل
+// [5] واجهة إضافة وتعديل المنتجات
 // =========================================================================
 
-let currentInvoiceOperationType = 'وصل جديد (توزيع)';
-let invoiceItemRowCount = 0;
-let isEditMode = false; // متغير لتحديد هل نحن في وضع جديد أم تعديل
+/**
+ * تعبئة قائمة المنتجات المقترحة أثناء الكتابة
+ */
+function populateProductDatalist() {
+  const datalist = document.getElementById('products-datalist');
+  if (!datalist) return;
+  datalist.innerHTML = '';
+  productsCache.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.name;
+    datalist.appendChild(opt);
+  });
+}
 
 /**
- * 1. فتح شاشة الوصل وتهيئة الحقول
+ * فحص هل المنتج موجود مسبقاً لعرض بياناته للتعديل
+ */
+function checkProductExists(name) {
+  const msg = document.getElementById('product-status-msg');
+  const btn = document.getElementById('btn-save-prod');
+  const wsInput = document.getElementById('p-wholesale');
+  const rtInput = document.getElementById('p-retail');
+
+  if (!name.trim()) {
+    if (msg) msg.innerText = '';
+    return;
+  }
+
+  const found = productsCache.find(p => p.name.toLowerCase() === name.trim().toLowerCase() && p.id !== null);
+  if (found) {
+    if (msg) {
+      msg.style.color = '#e67e22';
+      msg.innerText = `المنتج مسجل مسبقاً (مخزون: ${found.currentStock})`;
+    }
+    if (wsInput) wsInput.value = found.wholesalePrice;
+    if (rtInput) rtInput.value = found.retailPrice;
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> تعديل المنتج';
+  } else {
+    if (msg) {
+      msg.style.color = '#27ae60';
+      msg.innerText = 'منتج جديد سيتم إضافته';
+    }
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-save"></i> حفظ المنتج';
+  }
+}
+
+/**
+ * حفظ أو تعديل المنتج في جدول products
+ */
+async function submitProduct() {
+  const name = document.getElementById('p-name').value.trim();
+  const qty = Number(document.getElementById('p-qty').value) || 0;
+  const wholesale = Number(document.getElementById('p-wholesale').value) || 0;
+  const retail = Number(document.getElementById('p-retail').value) || 0;
+
+  if (!name) {
+    showAlert("يرجى كتابة اسم المنتج!");
+    return;
+  }
+
+  showLoader(true);
+  try {
+    const existing = productsCache.find(p => p.name.toLowerCase() === name.toLowerCase() && p.id !== null);
+
+    if (existing) {
+      const updatedStock = Number(existing.currentStock) + qty;
+      await db.from('products').update({
+        current_stock: updatedStock,
+        wholesale_price: wholesale,
+        retail_price: retail
+      }).eq('id', existing.id);
+      showAlert("تم تحديث بيانات المنتج بنجاح!");
+    } else {
+      await db.from('products').insert([{
+        name: name,
+        current_stock: qty,
+        wholesale_price: wholesale,
+        retail_price: retail
+      }]);
+      showAlert("تمت إضافة المنتج بنجاح!");
+    }
+
+    document.getElementById('p-name').value = '';
+    document.getElementById('p-qty').value = '';
+    document.getElementById('p-wholesale').value = '';
+    document.getElementById('p-retail').value = '';
+
+    await preloadData();
+    showDashboard();
+  } catch (err) {
+    showAlert("حدث خطأ أثناء حفظ المنتج: " + err.message);
+  } finally {
+    showLoader(false);
+  }
+}
+
+// =========================================================================
+// [6] واجهة إضافة الزبائن والموزعين
+// =========================================================================
+
+/**
+ * تسجيل زبون أو موزع جديد
+ */
+async function submitCustomer() {
+  const name = document.getElementById('c-name').value.trim();
+  const credit = Number(document.getElementById('c-credit').value) || 0;
+
+  if (!name) {
+    showAlert("يرجى كتابة اسم الزبون!");
+    return;
+  }
+
+  showLoader(true);
+  try {
+    const { error } = await db.from('customers').insert([{
+      name: name,
+      old_credit: credit,
+      last_invoice_seq: 0
+    }]);
+
+    if (error) throw error;
+
+    showAlert("تم تسجيل الزبون بنجاح!");
+    document.getElementById('c-name').value = '';
+    document.getElementById('c-credit').value = '';
+    await preloadData();
+    showDashboard();
+  } catch (err) {
+    showAlert("حدث خطأ أثناء تسجيل الزبون: " + err.message);
+  } finally {
+    showLoader(false);
+  }
+}
+
+// =========================================================================
+// [7] واجهة وصل جديد والعمليات والحسابات التلقائية والبحث والتعديل
+// =========================================================================
+
+/**
+ * فتح شاشة تحرير الوصل وتجهيز الحقول
  */
 function openInvoiceView() {
-  showView('view-invoice');
+  showView('view-invoice-ops');
   cancelInvoiceEditMode();
 
-  // ضبط تاريخ اليوم تلقائياً
+  // ضبط تاريخ اليوم
   const today = new Date().toISOString().split('T')[0];
   const dateInput = document.getElementById('inv-date');
   if (dateInput) dateInput.value = today;
@@ -229,7 +364,7 @@ function openInvoiceView() {
   document.getElementById('inv-new-debt').value = 0;
   document.getElementById('inv-notes').value = '';
 
-  // تجهيز 3 أسطر منتجات أولية
+  // تجهيز 3 أسطر أولية
   const container = document.getElementById('invoice-items-container');
   if (container) {
     container.innerHTML = '';
@@ -241,11 +376,11 @@ function openInvoiceView() {
 }
 
 /**
- * 2. تغيير نوع العملية (توزيع، إنتاج، مسترجعة، تالفة، هدايا)
+ * تحديد نوع العملية
  */
 function setInvoiceOperationType(opType) {
   currentInvoiceOperationType = opType;
-  const buttons = document.querySelectorAll('#view-invoice .btn-op');
+  const buttons = document.querySelectorAll('#view-invoice-ops .btn-op');
   buttons.forEach(btn => {
     if (btn.innerText.includes(opType.replace(/[()]/g, ''))) {
       btn.classList.add('active');
@@ -256,7 +391,7 @@ function setInvoiceOperationType(opType) {
 }
 
 /**
- * 3. إضافة سطر منتج داخل الوصل مع السعر والمخزون والإضافة التلقائية
+ * إضافة سطر منتج داخل الوصل مع دعم السعر والمخزون والإضافة التلقائية
  */
 function addInvoiceItemRow(prodId = '', price = '', qty = '') {
   invoiceItemRowCount++;
@@ -304,7 +439,7 @@ function addInvoiceItemRow(prodId = '', price = '', qty = '') {
 }
 
 /**
- * 4. حذف سطر منتج وإعادة حساب الإجمالي
+ * حذف سطر منتج
  */
 function removeInvoiceItemRow(rowId) {
   const row = document.getElementById(rowId);
@@ -315,7 +450,7 @@ function removeInvoiceItemRow(rowId) {
 }
 
 /**
- * 5. تحديث سعر المنتج ومخزونه الحالي عند اختياره
+ * تحديث سعر المنتج ومخزونه عند اختياره في السطر
  */
 function onInvoiceProductChanged(selectEl, rowId) {
   const row = document.getElementById(rowId);
@@ -338,7 +473,7 @@ function onInvoiceProductChanged(selectEl, rowId) {
 }
 
 /**
- * 6. إضافة سطر تلقائي عند الضغط على Enter في آخر خانة
+ * إضافة سطر جديد تلقائياً عند الضغط على Enter في آخر خانة كمية
  */
 function handleInvoiceLastInput(e, inputEl) {
   if (e.key === 'Enter') {
@@ -356,7 +491,7 @@ function handleInvoiceLastInput(e, inputEl) {
 }
 
 /**
- * 7. عند اختيار الزبون: جلب الكريدي القديم وتوليد رقم الوصل تلقائياً
+ * عند اختيار الزبون: جلب الكريدي القديم وتوليد رقم الوصل آلياً
  */
 function onInvoiceCustomerChanged(custName) {
   const numInput = document.getElementById('inv-num');
@@ -387,7 +522,7 @@ function onInvoiceCustomerChanged(custName) {
 }
 
 /**
- * 8. الحساب التلقائي للقيم المالية في الوصل
+ * الحساب المالي الآلي الشامل للوصل
  */
 function calculateInvoiceFinancials() {
   let totalGoods = 0;
@@ -412,7 +547,7 @@ function calculateInvoiceFinancials() {
 }
 
 /**
- * 9. البحث وجلب وصل سابق للتعديل برقم الوصل
+ * البحث وجلب وصل سابق للتعديل برقم الوصل
  */
 async function searchAndLoadInvoice() {
   const searchNum = document.getElementById('inv-search-input').value.trim();
@@ -482,7 +617,7 @@ async function searchAndLoadInvoice() {
 }
 
 /**
- * 10. إلغاء وضع التعديل والعودة للوضع الطبيعي
+ * إلغاء وضع التعديل
  */
 function cancelInvoiceEditMode() {
   isEditMode = false;
@@ -501,7 +636,7 @@ function cancelInvoiceEditMode() {
 }
 
 /**
- * 11. الحفظ النهائي (جديد أو تعديل) وترحيل البيانات
+ * الحفظ النهائي للوصل وترحيله للمخزن وسجل الفواتير
  */
 async function submitCompleteInvoice() {
   const customerName = document.getElementById('inv-customer-select').value;
@@ -597,352 +732,13 @@ async function submitCompleteInvoice() {
     showLoader(false);
   }
 }
-// =========================================================================
-// [6] إدارة الزبائن والموزعين
-// =========================================================================
-
-/**
- * تسجيل زبون أو موزع جديد مع رصيد الديون السابق (الكريدي)
- */
-async function submitCustomer() {
-  const name = document.getElementById('c-name').value.trim();
-  const credit = Number(document.getElementById('c-credit').value) || 0;
-
-  if (!name) {
-    showAlert("يرجى كتابة اسم الزبون!");
-    return;
-  }
-
-  showLoader(true);
-  try {
-    const { error } = await db.from('customers').insert([{
-      name: name,
-      old_credit: credit,
-      last_invoice_seq: 0
-    }]);
-
-    if (error) throw error;
-
-    showAlert("تم تسجيل الزبون بنجاح!");
-    document.getElementById('c-name').value = '';
-    document.getElementById('c-credit').value = '';
-    await preloadData();
-    showView('view-dashboard');
-  } catch (err) {
-    showAlert("حدث خطأ أثناء تسجيل الزبون: " + err.message);
-  } finally {
-    showLoader(false);
-  }
-}
-
-// =========================================================================
-// [7] واجهة الوصل والعمليات المتنوعة (توزيع، إنتاج، تالف، هدايا، مرتجع)
-// =========================================================================
-
-/**
- * تهيئة وفتح شاشة تحرير الفاتورة / الوصل الجديد
- */
-async function openInvoiceView() {
-  await preloadData();
-
-  // ضبط تاريخ اليوم تلقائياً
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('inv-date').value = today;
-  document.getElementById('inv-num').value = '';
-  document.getElementById('inv-credit').value = '0 دج';
-
-  // تعبئة القائمة المنسدلة للزبائن
-  const custSelect = document.getElementById('inv-customer');
-  custSelect.innerHTML = '<option value="">-- اختر الزبون --</option>';
-  customersCache.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.name;
-    opt.innerText = c.name;
-    custSelect.appendChild(opt);
-  });
-
-  // إضافة 3 أسطر للمنتجات كبداية
-  const container = document.getElementById('invoice-items-container');
-  container.innerHTML = '';
-  addInvoiceItemRow();
-  addInvoiceItemRow();
-  addInvoiceItemRow();
-
-  showView('view-invoice-ops');
-}
-
-/**
- * عند اختيار زبون: 
- * 1. جلب الكريدي القديم الخاص به.
- * 2. توليد رقم الوصل التسلسلي المركب آلياً: (السنة الحالية + كود الزبون + رقم الوصل).
- * @param {string} customerName - اسم الزبون المختار
- */
-function onCustomerSelect(customerName) {
-  const creditInput = document.getElementById('inv-credit');
-  const receiptInput = document.getElementById('inv-num');
-
-  if (!customerName) {
-    creditInput.value = '0 دج';
-    if (receiptInput) receiptInput.value = '';
-    return;
-  }
-
-  const custIndex = customersCache.findIndex(c => c.name === customerName);
-  const found = customersCache[custIndex];
-
-  if (found && custIndex !== -1) {
-    // إظهار الكريدي القديم
-    creditInput.value = Number(found.oldCredit || 0).toLocaleString() + ' دج';
-
-    // استخراج السنة الحالية
-    const currentYear = new Date().getFullYear();
-
-    // ترميز الزبون من 3 خانات (مثال: 001، 002)
-    const customerCode = String(custIndex + 1).padStart(3, '0');
-
-    // رقم تسلسل فاتورة الزبون القادمة من 3 خانات
-    const invoiceSeq = String((found.lastInvoiceSeq || 0) + 1).padStart(3, '0');
-
-    // تركيب رقم الوصل المركب (مثال: 2026001001)
-    const fullInvoiceNum = `${currentYear}${customerCode}${invoiceSeq}`;
-    if (receiptInput) {
-      receiptInput.value = fullInvoiceNum;
-    }
-  } else {
-    creditInput.value = '0 دج';
-    if (receiptInput) receiptInput.value = '';
-  }
-}
-
-/**
- * جلب قائمة أسماء السلع المحددة مسبقاً في الأسطر الأخرى لمنع تكرارها
- * @param {string|null} excludeRowId - معرف السطر الحالي لتجاوزه
- */
-function getSelectedProductsList(excludeRowId = null) {
-  const selected = [];
-  document.querySelectorAll('#invoice-items-container > div').forEach(row => {
-    if (row.id !== excludeRowId) {
-      const select = row.querySelector('.item-select');
-      if (select && select.value) {
-        selected.push(select.value);
-      }
-    }
-  });
-  return selected;
-}
-
-/**
- * تحديث القوائم المنسدلة للسلع وحذف أي سلعة تم اختيارها في سطر آخر
- */
-function refreshAllItemDropdowns() {
-  document.querySelectorAll('#invoice-items-container > div').forEach(row => {
-    const select = row.querySelector('.item-select');
-    if (!select) return;
-
-    const currentVal = select.value;
-    const takenInOtherRows = getSelectedProductsList(row.id);
-
-    select.innerHTML = '<option value="">-- اختر الحلوى --</option>';
-
-    productsCache.forEach(p => {
-      if (!takenInOtherRows.includes(p.name)) {
-        const opt = document.createElement('option');
-        opt.value = p.name;
-        opt.innerText = p.name;
-        opt.setAttribute('data-price', p.wholesalePrice);
-        opt.setAttribute('data-stock', p.currentStock);
-        if (p.name === currentVal) {
-          opt.selected = true;
-        }
-        select.appendChild(opt);
-      }
-    });
-
-    // إذا اختار المستخدم سلعة مكررة يتم تفريغ الخانة
-    if (currentVal && takenInOtherRows.includes(currentVal)) {
-      select.value = '';
-      row.querySelector('.item-stock-badge').innerText = 'مخزن: 0';
-      row.querySelector('.item-price').value = '';
-      row.querySelector('.item-qty').value = '';
-    }
-  });
-}
-
-/**
- * إضافة سطر جديد للفاتورة بشكل ديناميكي (مع تفعيل الإضافة التلقائية عند آخر خانة)
- */
-function addInvoiceItemRow() {
-  const container = document.getElementById('invoice-items-container');
-  const rowId = 'item-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-
-  const rowDiv = document.createElement('div');
-  rowDiv.id = rowId;
-  rowDiv.style = "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 40px; gap: 10px; align-items: center; margin-bottom: 10px; background: #fdfefe; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;";
-
-  rowDiv.innerHTML = `
-    <div>
-      <select class="form-control item-select" onchange="onItemRowSelect('${rowId}', this)">
-        <option value="" selected>-- اختر الحلوى --</option>
-      </select>
-    </div>
-    <div>
-      <span class="item-stock-badge" style="color: #e74c3c; font-size: 13px; font-weight: bold;">مخزن: 0</span>
-    </div>
-    <div>
-      <input type="number" class="form-control item-price" placeholder="السعر" style="font-weight: bold;">
-    </div>
-    <div>
-      <input type="number" class="form-control item-qty" placeholder="الكمية" style="font-weight: bold;" oninput="handleAutoAddInvoiceRow('${rowId}')">
-    </div>
-    <div>
-      <button class="btn-action btn-secondary" style="padding: 6px 10px; background: #e74c3c;" onclick="removeInvoiceItemRow('${rowId}')">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-  `;
-
-  container.appendChild(rowDiv);
-  refreshAllItemDropdowns();
-}
-
-/**
- * التحقق من الكتابة في خانة الكمية للسطر الأخير، وإضافة سطر جديد تلقائياً
- * @param {string} currentRowId - معرف السطر الحالي
- */
-function handleAutoAddInvoiceRow(currentRowId) {
-  const container = document.getElementById('invoice-items-container');
-  const allRows = container.querySelectorAll(':scope > div');
-  
-  if (allRows.length === 0) return;
-
-  // التحقق إن كان السطر الحالي هو السطر الأخير في القائمة
-  const lastRow = allRows[allRows.length - 1];
-  if (lastRow.id === currentRowId) {
-    const qtyInput = lastRow.querySelector('.item-qty');
-    // إذا تمت كتابة كمية أكبر من صفر، يضاف سطر جديد فوراً
-    if (qtyInput && Number(qtyInput.value) > 0) {
-      addInvoiceItemRow();
-    }
-  }
-}
-/**
- * عند اختيار سلعة داخل سطر الفاتورة: وضع السعر والمخزون الحالي تلقائياً
- */
-function onItemRowSelect(rowId, selectEl) {
-  const row = document.getElementById(rowId);
-  const selectedOpt = selectEl.options[selectEl.selectedIndex];
-
-  if (selectEl.value) {
-    const stock = selectedOpt.getAttribute('data-stock') || 0;
-    const price = selectedOpt.getAttribute('data-price') || 0;
-
-    row.querySelector('.item-stock-badge').innerText = `مخزن: ${stock}`;
-    row.querySelector('.item-price').value = price > 0 ? price : '';
-  } else {
-    row.querySelector('.item-stock-badge').innerText = `مخزن: 0`;
-    row.querySelector('.item-price').value = '';
-    row.querySelector('.item-qty').value = '';
-  }
-
-  refreshAllItemDropdowns();
-}
-
-/**
- * حذف سطر من الفاتورة
- */
-function removeInvoiceItemRow(rowId) {
-  const row = document.getElementById(rowId);
-  if (row) {
-    row.remove();
-    refreshAllItemDropdowns();
-  }
-}
-
-/**
- * حفظ عملية الفاتورة (توزيع، إنتاج، تالف، هدايا، مرتجع) وتحديث المخزون وتسلسل الفواتير
- * @param {string} type - نوع العملية ('distribution', 'produced', 'damaged', 'gifts', 'returned')
- */
-async function submitInvoiceOp(type) {
-  const date = document.getElementById('inv-date').value;
-  const receipt = document.getElementById('inv-num').value.trim();
-  const customer = document.getElementById('inv-customer').value;
-
-  if (type === 'distribution' && !customer) {
-    showAlert("يرجى اختيار الزبون أولاً لعملية التوزيع!");
-    return;
-  }
-
-  const items = [];
-  document.querySelectorAll('#invoice-items-container > div').forEach(row => {
-    const select = row.querySelector('.item-select');
-    const pName = select.value;
-    const qty = Number(row.querySelector('.item-qty').value) || 0;
-    const price = Number(row.querySelector('.item-price').value) || 0;
-
-    if (pName && qty > 0) {
-      items.push({
-        operation_type: type,
-        operation_date: date,
-        customer_name: customer || '',
-        receipt_number: receipt || '',
-        product_name: pName,
-        quantity: qty,
-        price: price
-      });
-    }
-  });
-
-  if (items.length === 0) {
-    showAlert("يرجى تحديد منتج واحد على الأقل مع كتابة الكمية!");
-    return;
-  }
-
-  showLoader(true);
-  try {
-    // 1. تسجيل سطور الفاتورة في جدول invoice_operations
-    const { error: insErr } = await db.from('invoice_operations').insert(items);
-    if (insErr) throw insErr;
-
-    // 2. تحديث المخزن وفق نوع العملية
-    for (const item of items) {
-      const prod = productsCache.find(p => p.name === item.product_name && p.id !== null);
-      if (prod) {
-        let newStock = prod.currentStock;
-        if (type === 'distribution' || type === 'damaged' || type === 'gifts') {
-          newStock -= item.quantity; // إنقاص من المخزن
-        } else if (type === 'produced' || type === 'returned') {
-          newStock += item.quantity; // زيادة إلى المخزن
-        }
-        await db.from('products').update({ current_stock: newStock }).eq('id', prod.id);
-      }
-    }
-
-    // 3. زيادة تسلسل فواتير الزبون في حال عملية التوزيع
-    if (type === 'distribution' && customer) {
-      const cust = customersCache.find(c => c.name === customer);
-      if (cust) {
-        await db.from('customers').update({
-          last_invoice_seq: (cust.lastInvoiceSeq || 0) + 1
-        }).eq('id', cust.id);
-      }
-    }
-
-    showAlert("تم حفظ العملية وتحديث المخزون بنجاح!");
-    await preloadData();
-    showView('view-dashboard');
-  } catch (err) {
-    showAlert("حدث خطأ أثناء تسجيل العملية: " + err.message);
-  } finally {
-    showLoader(false);
-  }
-}
 
 // =========================================================================
 // [8] واجهة جرد الباقي وحساب المباع وتصفية الحساب
 // =========================================================================
 
 /**
- * تهيئة وفتح شاشة جرد الباقي وحساب المباع
+ * فتح شاشة الجرد
  */
 async function openInventoryView() {
   await preloadData();
@@ -964,8 +760,7 @@ async function openInventoryView() {
 }
 
 /**
- * بناء جدول السلع عند اختيار زبون لحساب الجرد
- * @param {string} customerName - اسم الزبون
+ * تحميل السلع للجرد عند اختيار الزبون
  */
 function loadCustomerDeliveredStock(customerName) {
   if (!customerName) return;
@@ -987,8 +782,7 @@ function loadCustomerDeliveredStock(customerName) {
 }
 
 /**
- * حساب المباع وإجمالي السطر رياضياً: المباع = المسلم - الباقي
- * @param {number} idx - رقم السطر
+ * حساب المباع لكل سطر في الجرد
  */
 function calcRowSales(idx) {
   const row = document.getElementById(`invt-row-${idx}`);
@@ -1006,7 +800,7 @@ function calcRowSales(idx) {
 }
 
 /**
- * حساب المجموع الكلي للمبيعات في شاشة الجرد
+ * حساب المجموع الكلي لشاشة الجرد
  */
 function calcGrandTotal() {
   let grand = 0;
@@ -1019,7 +813,7 @@ function calcGrandTotal() {
 }
 
 /**
- * حفظ عملية الجرد وتصفية الحساب
+ * حفظ عملية الجرد
  */
 async function submitInventoryAndSales() {
   const date = document.getElementById('invt-date').value;
@@ -1061,7 +855,7 @@ async function submitInventoryAndSales() {
 
     showAlert("تم حفظ بيانات الجرد والفاتورة بنجاح!");
     await preloadData();
-    showView('view-dashboard');
+    showDashboard();
   } catch (err) {
     showAlert("حدث خطأ أثناء حفظ الجرد: " + err.message);
   } finally {
@@ -1070,11 +864,11 @@ async function submitInventoryAndSales() {
 }
 
 // =========================================================================
-// [9] إدارة وحساب تكلفة الإنتاج وبناء الجدول الديناميكي والإدراج التلقائي
+// [9] واجهة حساب تكلفة الإنتاج والتعليب
 // =========================================================================
 
 /**
- * تهيئة وفتح شاشة حساب تكلفة الإنتاج
+ * فتح واجهة حساب تكلفة الإنتاج
  */
 function showProductionCostView() {
   document.getElementById('cost-product-name').value = '';
@@ -1085,7 +879,6 @@ function showProductionCostView() {
   const container = document.getElementById('cost-ingredients-container');
   container.innerHTML = '';
 
-  // إضافة 3 أسطر افتراضية للمكونات
   addIngredientRow();
   addIngredientRow();
   addIngredientRow();
@@ -1094,7 +887,7 @@ function showProductionCostView() {
 }
 
 /**
- * إضافة سطر مكون ديناميكي جديد في جدول تكلفة الإنتاج (مع الإضافة التلقائية عند آخر خانة)
+ * إضافة سطر مكون جديد
  */
 function addIngredientRow() {
   const container = document.getElementById('cost-ingredients-container');
@@ -1118,8 +911,7 @@ function addIngredientRow() {
 }
 
 /**
- * التحقق من الكتابة في خانة "سعر الوحدة" للسطر الأخير في جدول التكلفة، وإضافة سطر جديد تلقائياً
- * @param {string} currentRowId - معرف السطر الحالي
+ * إضافة سطر مكون تلقائياً عند آخر إدخال
  */
 function handleAutoAddCostRow(currentRowId) {
   const container = document.getElementById('cost-ingredients-container');
@@ -1127,18 +919,17 @@ function handleAutoAddCostRow(currentRowId) {
   
   if (allRows.length === 0) return;
 
-  // التحقق إن كان السطر الحالي هو السطر الأخير في قائمة المكونات
   const lastRow = allRows[allRows.length - 1];
   if (lastRow.id === currentRowId) {
     const priceInput = lastRow.querySelector('.ing-price');
-    // إذا تم إدخال سعر أكبر من صفر، يضاف سطر مكون جديد تلقائياً
     if (priceInput && Number(priceInput.value) > 0) {
       addIngredientRow();
     }
   }
 }
+
 /**
- * تجميع بيانات المكونات، حساب التكلفة، وإدراج المنتج مباشرة في جداول SQL والمخزن
+ * حفظ تكلفة الإنتاج وحساب سعر العلبة وإدراجها في المخزن
  */
 async function submitProductionCost() {
   const pName = document.getElementById('cost-product-name').value.trim();
@@ -1147,7 +938,6 @@ async function submitProductionCost() {
     return;
   }
 
-  // 1. تجميع المكونات وحساب تكلفة الاستهلاك: المستهلك = (الكلي - الباقي) * سعر الوحدة
   const rows = document.querySelectorAll('#cost-ingredients-container .cost-row');
   const records = [];
   let totalIngredientsCost = 0;
@@ -1172,7 +962,6 @@ async function submitProductionCost() {
     }
   });
 
-  // 2. تجميع وحساب سطر التعليب: عدد العلب المنتجة = كلي التعليب - باقي التعليب
   const pkgTotal = parseFloat(document.getElementById('pkg-total').value) || 0;
   const pkgRem = parseFloat(document.getElementById('pkg-rem').value) || 0;
   const pkgPrice = parseFloat(document.getElementById('pkg-price').value) || 0;
@@ -1195,17 +984,14 @@ async function submitProductionCost() {
     return;
   }
 
-  // حساب التكلفة الإجمالية وتكلفة العلبة الواحدة
   const grandTotalCost = totalIngredientsCost + packagingCost;
   const unitCostPerBox = producedBoxes > 0 ? Math.round(grandTotalCost / producedBoxes) : 0;
 
   showLoader(true);
   try {
-    // أ) حفظ المكونات في جدول production_costs
     const { error: costErr } = await db.from('production_costs').insert(records);
     if (costErr) throw costErr;
 
-    // ب) إدراج أو تحديث المنتج في جدول products ليتوفر فوراً في كل الجداول والقوائم
     const existing = productsCache.find(p => p.name.toLowerCase() === pName.toLowerCase() && p.id !== null);
 
     if (!existing) {
@@ -1221,11 +1007,10 @@ async function submitProductionCost() {
       }).eq('id', existing.id);
     }
 
-    // ج) إعادة تحميل البيانات وتحديث الواجهة
     await preloadData();
 
     showAlert(`تم حفظ تكلفة الإنتاج بنجاح!\n• عدد العلب المنتجة: ${producedBoxes}\n• التكلفة الإجمالية: ${grandTotalCost.toLocaleString()} دج\n• تكلفة العلبة: ${unitCostPerBox} دج\n• تم إدراج المنتج في المخزن والقوائم.`);
-    showView('view-dashboard');
+    showDashboard();
   } catch (err) {
     showAlert("حدث خطأ أثناء الحفظ: " + err.message);
   } finally {
@@ -1234,11 +1019,11 @@ async function submitProductionCost() {
 }
 
 // =========================================================================
-// [10] عرض حالة المخزن الحالية وجدول المنتجات
+// [10] جدول عرض حالة المخزون الحالي
 // =========================================================================
 
 /**
- * جلب وعرض بيانات المخزن الحالي في جدول منسق
+ * جلب وعرض بيانات المخزن الحالي
  */
 async function loadStockTable() {
   showView('view-stock-table');
@@ -1282,14 +1067,8 @@ async function loadStockTable() {
 }
 
 // =========================================================================
-// [11] عرض سجل الفواتير والدفعات، خيارات الطباعة، والإغلاق السنوي
+// [11] واجهة سجل الفواتير والدفعات، خيارات الطباعة، والإغلاق السنوي
 // =========================================================================
-
-// إعدادات كلمات السر للعمليات الحساسة
-const SECURITY_CONFIG = {
-  adminPassword: "123",        // كلمة السر العامة
-  yearClosePassword: "123"     // كلمة السر المخصصة للإغلاق السنوي وتصفية السجل
-};
 
 /**
  * 1. فتح شاشة سجل الفواتير وعرض البيانات مع أزرار الطباعة
