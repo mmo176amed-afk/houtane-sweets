@@ -8,7 +8,7 @@ let costIngredientRowCount = 0;
 let isCostEditMode = false;
 
 /**
- * 1. فتح شاشة التكلفة وجلب قائمة المنتجات مباشرة من قاعدة البيانات
+ * 1. فتح واجهة التكلفة وجلب أسماء المنتجات مباشرة من قاعدة البيانات
  */
 async function showProductionCostView() {
   showView('view-cost-calculation');
@@ -16,13 +16,12 @@ async function showProductionCostView() {
   showLoader(true);
 
   try {
-    // جلب قائمة المنتجات مباشرة من جدول products لضمان ظهور كل المنتجات
-    const { data: prods, error: prodErr } = await db
+    const { data: prods, error } = await db
       .from('products')
       .select('name')
       .order('name', { ascending: true });
 
-    if (prodErr) throw prodErr;
+    if (error) throw error;
 
     const selectEl = document.getElementById('cost-product-select');
     if (selectEl) {
@@ -34,7 +33,6 @@ async function showProductionCostView() {
         selectEl.appendChild(opt);
       });
 
-      // خيار إضافي لمنتج جديد
       const newOpt = document.createElement('option');
       newOpt.value = "__NEW__";
       newOpt.innerText = "➕ [إضافة تكلفة لمنتج جديد...]";
@@ -120,7 +118,7 @@ function addCostIngredientRow(name = '', total = '', rem = '', price = '') {
 }
 
 /**
- * 4. إضافة سطر تلقائي عند ملء السطر الأخير
+ * 4. توليد سطر جديد عند ملء السطر الأخير
  */
 function handleCostRowInput(currentRowId) {
   const rows = document.querySelectorAll('.cost-row-item');
@@ -146,7 +144,7 @@ function removeCostIngredientRow(rowId) {
 }
 
 /**
- * 6. جلب بيانات المكونات فور اختيار الحلوى من القائمة
+ * 6. جلب بيانات المكونات فور اختيار الحلوى من القائمة المنسدلة
  */
 async function onCostProductSelectChanged(prodName) {
   if (!prodName) {
@@ -154,7 +152,6 @@ async function onCostProductSelectChanged(prodName) {
     return;
   }
 
-  // حالة إضافة منتج جديد
   if (prodName === "__NEW__") {
     const customName = prompt("اكتب اسم الحلوى الجديدة:");
     if (!customName || !customName.trim()) {
@@ -196,13 +193,11 @@ async function onCostProductSelectChanged(prodName) {
         submitBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> حفظ وتحديث التعديلات';
       }
 
-      // تعبئة بيانات التعليب
       const pkg = data.packaging_data || {};
       document.getElementById('pkg-total').value = pkg.total !== undefined ? pkg.total : '';
       document.getElementById('pkg-rem').value = pkg.remaining !== undefined ? pkg.remaining : '';
       document.getElementById('pkg-price').value = pkg.unit_price !== undefined ? pkg.unit_price : '';
 
-      // تعبئة سطور المكونات
       const container = document.getElementById('cost-ingredients-container');
       container.innerHTML = '';
       costIngredientRowCount = 0;
@@ -213,7 +208,7 @@ async function onCostProductSelectChanged(prodName) {
           addCostIngredientRow(ing.name || '', ing.total || '', ing.remaining || '', ing.unit_price || '');
         });
       }
-      addCostIngredientRow(); // سطر إضافي فارغ
+      addCostIngredientRow();
 
     } else {
       isCostEditMode = false;
