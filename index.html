@@ -12,7 +12,7 @@
 <body>
 
 <!-- ========================================================================= -->
-<!-- مؤشر التحميل (Spinner) الذي يظهر أثناء إرسال واستقبال البيانات من Google Sheets -->
+<!-- [0] مؤشر التحميل (Spinner) أثناء معالجة البيانات والاتصال بقاعدة البيانات -->
 <!-- ========================================================================= -->
 <div id="loader" class="loader-overlay">
   <div style="text-align: center;">
@@ -53,7 +53,7 @@
     </div>
   </div>
 
- <!-- ======================================================================= -->
+  <!-- ======================================================================= -->
   <!-- [2] لوحة التحكم الرئيسية (Dashboard View) -->
   <!-- ======================================================================= -->
   <div id="view-dashboard" class="view-section">
@@ -74,49 +74,50 @@
 
     <!-- شبكة أزرار الوصول السريع للأقسام -->
     <div class="btn-grid">
-      <!-- زر إضافة وتعديل المنتجات -->
+      <!-- زر إضافة وتعديل المنتجات [3] -->
       <button class="app-btn btn-p1" onclick="showView('view-add-product')">
         <i class="fa-solid fa-box-open"></i>
         إضافة وتعديل المنتجات
       </button>
 
-      <!-- زر إدارة الزبائن والموزعين -->
+      <!-- زر إدارة الزبائن والموزعين [4] -->
       <button class="app-btn btn-p2" onclick="showView('view-add-customer')">
         <i class="fa-solid fa-users"></i>
         إدارة الزبائن والموزعين
       </button>
 
-      <!-- زر تسجيل الوصل والعمليات -->
+      <!-- زر تسجيل الوصل والعمليات [5] -->
       <button class="app-btn btn-p3" onclick="openInvoiceView()">
         <i class="fa-solid fa-truck-ramp-box"></i>
         وصل جديد والعمليات على المنتجات
       </button>
 
-      <!-- زر جرد الباقي وحساب المباع -->
+      <!-- زر جرد الباقي وحساب المباع [6] -->
       <button class="app-btn btn-p4" onclick="openInventoryView()">
         <i class="fa-solid fa-calculator"></i>
         جرد الباقي وحساب المباع
       </button>
 
-      <!-- زر حساب تكلفة الإنتاج -->
+      <!-- زر حساب تكلفة الإنتاج [7] -->
       <button class="app-btn" style="background: #2c3e50; color: white;" onclick="showProductionCostView()">
         <i class="fa-solid fa-chart-pie"></i>
         حساب تكلفة الإنتاج
       </button>
 
-      <!-- زر سجل الفواتير والدفعات المحدث -->
+      <!-- زر سجل الفواتير والدفعات [9] -->
       <button class="app-btn btn-p5" onclick="loadInvoicesTable()">
         <i class="fa-solid fa-file-invoice-dollar"></i>
         سجل الفواتير والدفعات
       </button>
 
-      <!-- زر عرض المخزون الحالي -->
+      <!-- زر عرض المخزون الحالي [8] -->
       <button class="app-btn btn-p6" onclick="loadStockTable()">
         <i class="fa-solid fa-boxes-stacked"></i>
         عرض حالة المخزن الحالي
       </button>
     </div>
   </div>
+
   <!-- ======================================================================= -->
   <!-- [3] واجهة إضافة وتعديل المنتجات (Add/Edit Product View) -->
   <!-- ======================================================================= -->
@@ -193,12 +194,12 @@
   </div>
 
   <!-- ======================================================================= -->
-  <!-- [5] واجهة وصل جديد والعمليات على المنتجات (Invoice & Operations View) -->
+  <!-- [5] واجهة وصل جديد والعمليات على المنتجات مع ملخص الحساب المالي المدمج -->
   <!-- ======================================================================= -->
   <div id="view-invoice-ops" class="view-section">
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h3><i class="fa-solid fa-file-lines" style="color: var(--accent);"></i> وصل جديد والعمليات على المنتجات</h3>
+        <h3><i class="fa-solid fa-truck-ramp-box" style="color: var(--accent);"></i> وصل جديد والعمليات على المنتجات</h3>
         <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
           <i class="fa-solid fa-arrow-right"></i> رجوع
         </button>
@@ -216,31 +217,31 @@
         </div>
         <div class="form-group">
           <label>اسم الزبون / الموزع</label>
-          <select id="inv-customer" class="form-control" onchange="onCustomerSelect(this.value)">
+          <select id="inv-customer" class="form-control" onchange="onInvoiceCustomerChanged(this.value)">
             <option value="">-- اختر الزبون --</option>
           </select>
         </div>
         <div class="form-group">
-          <label>قيمة الكريدي (دج)</label>
-          <input type="text" id="inv-credit" class="form-control" readonly style="background: #edf2f7; font-weight: bold; color: var(--danger);">
+          <label>قيمة الكريدي السابق (دج)</label>
+          <input type="text" id="inv-credit" class="form-control" readonly style="background: #edf2f7; font-weight: bold; color: var(--danger);" value="0 دج">
         </div>
       </div>
 
-      <!-- أزرار العمليات والترحيل للجداول المتخصصة -->
+      <!-- أزرار نوع العملية على السلع -->
       <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; background: #e2e8f0; padding: 12px; border-radius: 8px;">
-        <button class="btn-action" style="background: #27ae60;" onclick="submitInvoiceOp('distribution')">
+        <button type="button" class="btn-action btn-op active" style="background: #27ae60;" onclick="setInvoiceOperationType('وصل جديد (توزيع)')">
           <i class="fa-solid fa-truck"></i> وصل جديد (توزيع)
         </button>
-        <button class="btn-action" style="background: #e67e22;" onclick="submitInvoiceOp('produced')">
+        <button type="button" class="btn-action btn-op" style="background: #e67e22;" onclick="setInvoiceOperationType('سلعة منتجة')">
           <i class="fa-solid fa-cookie"></i> سلعة منتجة
         </button>
-        <button class="btn-action" style="background: #3498db;" onclick="submitInvoiceOp('returned')">
+        <button type="button" class="btn-action btn-op" style="background: #3498db;" onclick="setInvoiceOperationType('مسترجعة')">
           <i class="fa-solid fa-rotate-left"></i> مسترجعة
         </button>
-        <button class="btn-action" style="background: #d35400;" onclick="submitInvoiceOp('damaged')">
+        <button type="button" class="btn-action btn-op" style="background: #d35400;" onclick="setInvoiceOperationType('تالفة')">
           <i class="fa-solid fa-trash-can"></i> تالفة
         </button>
-        <button class="btn-action" style="background: #c0392b;" onclick="submitInvoiceOp('gifts')">
+        <button type="button" class="btn-action btn-op" style="background: #c0392b;" onclick="setInvoiceOperationType('هدايا')">
           <i class="fa-solid fa-gift"></i> هدايا
         </button>
       </div>
@@ -249,10 +250,67 @@
       <div id="invoice-items-container"></div>
 
       <div style="margin-top: 15px;">
-        <button class="btn-action" style="background: #4b6584;" onclick="addInvoiceItemRow()">
+        <button type="button" class="btn-action" style="background: #4b6584;" onclick="addInvoiceItemRow()">
           <i class="fa-solid fa-plus"></i> إضافة سطر منتج آخر للوصل
         </button>
       </div>
+
+      <!-- ----------------------------------------------------------------- -->
+      <!-- صندوق الحسابات الإجمالي والمالي التلقائي المدمج أسفل الوصل -->
+      <!-- ----------------------------------------------------------------- -->
+      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin-top: 25px;">
+        <h4 style="margin-bottom: 15px; color: var(--primary);">
+          <i class="fa-solid fa-calculator"></i> ملخص الحساب المالي للفاتورة
+        </h4>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end;">
+          
+          <!-- مبلغ السلع الحالية في الوصل -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">مبلغ السلع الحالية (دج):</label>
+            <input type="number" id="inv-total-goods" class="form-control" value="0" readonly style="background: #eef2f7; font-weight: bold; color: #2c3e50;">
+          </div>
+
+          <!-- المبلغ الإجمالي المطلوب (السلع الحالية + الكريدي القديم) -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">الإجمالي مع القديم (دج):</label>
+            <input type="number" id="inv-grand-total" class="form-control" value="0" readonly style="background: #eef2f7; font-weight: bold; color: #d35400;">
+          </div>
+
+          <!-- المبلغ المدفوع نقداً من الزبون -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold; color: #27ae60;">المدفوع نقداً (دج):</label>
+            <input type="number" id="inv-paid-amount" class="form-control" placeholder="0" oninput="calculateInvoiceFinancials()">
+          </div>
+
+          <!-- تاريخ تسديد الدفعة -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">تاريخ الدفع:</label>
+            <input type="date" id="inv-payment-date" class="form-control">
+          </div>
+
+          <!-- الدين الجديد المتبقي (الإجمالي - المدفوع) -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold; color: #c0392b;">الكريدي الجديد المتبقي (دج):</label>
+            <input type="number" id="inv-new-debt" class="form-control" value="0" readonly style="background: #fde8e8; font-weight: bold; color: #c0392b; font-size: 16px;">
+          </div>
+
+          <!-- الملاحظات -->
+          <div style="grid-column: span 2;">
+            <label style="font-size: 13px; font-weight: bold;">الملاحظات:</label>
+            <input type="text" id="inv-notes" class="form-control" placeholder="مثال: روثور 5 طابع، إرجاع علب، بونيس...">
+          </div>
+
+          <!-- زر الحفظ النهائي للوصل وترحيله للمخزن وسجل الفواتير والزبائن -->
+          <div>
+            <button type="button" class="btn-action" style="width: 100%; height: 42px; background: #27ae60; font-size: 15px;" onclick="submitCompleteInvoice()">
+              <i class="fa-solid fa-floppy-disk"></i> تسجيل وتأكيد الوصل
+            </button>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -313,11 +371,10 @@
   </div>
 
   <!-- ======================================================================= -->
-  <!-- [7] واجهة حساب تكلفة الإنتاج (Production Cost View) - الإضافة الجديدة -->
+  <!-- [7] واجهة حساب تكلفة الإنتاج (Production Cost View) -->
   <!-- ======================================================================= -->
   <div id="view-cost-calculation" class="view-section">
     <div class="card" style="max-width: 950px; margin: 0 auto;">
-      <!-- شريط العنوان والرجوع -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h3><i class="fa-solid fa-chart-pie" style="color: #2c3e50;"></i> جدول حساب تكلفة الإنتاج للمنتج</h3>
         <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
@@ -334,11 +391,8 @@
       <!-- قسم إدخال المكونات المتتابعة -->
       <div style="border-top: 1px solid #e2e8f0; padding-top: 15px;">
         <h4 style="color: #34495e; margin-bottom: 10px;"><i class="fa-solid fa-list-check"></i> مكونات المنتج:</h4>
-        
-        <!-- حاوية أسطر المكونات الديناميكية -->
         <div id="cost-ingredients-container"></div>
 
-        <!-- زر إضافة سطر مكون جديد -->
         <button type="button" class="btn-action" style="background: #34495e; margin-top: 10px; width: 100%;" onclick="addIngredientRow()">
           <i class="fa-solid fa-plus"></i> إضافة مكون آخر للجدول
         </button>
@@ -373,7 +427,7 @@
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
         <h3><i class="fa-solid fa-warehouse" style="color: var(--secondary);"></i> حالة المخزون الحالية</h3>
-        <button class="btn-action btn-secondary" onclick="showDashboard()">
+        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
           <i class="fa-solid fa-arrow-right"></i> رجوع
         </button>
       </div>
@@ -396,105 +450,31 @@
   </div>
 
   <!-- ======================================================================= -->
-  <!-- [9] واجهة وسجل الفواتير والدفعات مع نموذج الإدخال السريع وزر الإغلاق السنوي -->
+  <!-- [9] واجهة سجل الفواتير والدفعات مع أزرار الطباعة والإغلاق السنوي -->
   <!-- ======================================================================= -->
   <div id="view-invoices-table" class="view-section">
     <div class="card">
       
-      <!-- ------------------------------------------------------------------- -->
-      <!-- رأس الواجهة: يحتوي على العنوان، زر إغلاق السنة، وزر الرجوع للرئيسية -->
-      <!-- ------------------------------------------------------------------- -->
+      <!-- رأس الواجهة -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
         <h3>
           <i class="fa-solid fa-file-invoice-dollar" style="color: var(--success);"></i> 
-          سجل الفواتير والدفعات وإدارة الحسابات
+          سجل الفواتير والدفعات
         </h3>
         <div>
-          <!-- زر إغلاق السنة المالية ونقل الكريدي المتبقي إلى بطاقة كل زبون (محمي بكلمة سر) -->
+          <!-- زر إغلاق السنة المالية ونقل الكريدي المتبقي لبطاقات الزبائن (محمي برقم سري) -->
           <button class="btn-action" style="background: #c0392b; margin-left: 8px;" onclick="closeYearAndCarryOverDebt()">
             <i class="fa-solid fa-calendar-check"></i> إغلاق السنة ونقل الكريدي
           </button>
           
-          <!-- زر الرجوع إلى لوحة التحكم الرئيسية -->
-          <button class="btn-action btn-secondary" onclick="showDashboard()">
+          <!-- زر الرجوع للرئيسية -->
+          <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
             <i class="fa-solid fa-arrow-right"></i> رجوع
           </button>
         </div>
       </div>
 
-      <!-- ------------------------------------------------------------------- -->
-      <!-- نموذج تسجيل فاتورة أو دفعة جديدة مباشرة من الموقع -->
-      <!-- ------------------------------------------------------------------- -->
-      <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
-        <h4 style="margin-bottom: 12px; color: var(--primary);">
-          <i class="fa-solid fa-plus-circle"></i> تسجيل فاتورة أو دفعة جديدة
-        </h4>
-        
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; align-items: end;">
-          
-          <!-- 1. قائمة اختيار اسم الزبون -->
-          <div>
-            <label style="font-size: 13px; font-weight: bold;">اسم الزبون:</label>
-            <select id="inv-form-customer" class="form-control" onchange="onInvoiceCustomerSelect(this.value)">
-              <option value="">-- اختر الزبون --</option>
-            </select>
-          </div>
-
-          <!-- 2. خانة رقم الفاتورة (يتم توليده آلياً بمجرد اختيار الزبون) -->
-          <div>
-            <label style="font-size: 13px; font-weight: bold;">رقم الفاتورة:</label>
-            <input type="text" id="inv-form-num" class="form-control" placeholder="رقم الفاتورة">
-          </div>
-
-          <!-- 3. خانة إجمالي مبلغ الفاتورة -->
-          <div>
-            <label style="font-size: 13px; font-weight: bold;">مبلغ الفاتورة (دج):</label>
-            <input type="number" id="inv-form-amount" class="form-control" placeholder="0" oninput="calcFormDebt()">
-          </div>
-
-          <!-- 4. خانة تاريخ تحرير الفاتورة -->
-          <div>
-            <label style="font-size: 13px; font-weight: bold;">تاريخ الفاتورة:</label>
-            <input type="date" id="inv-form-date" class="form-control">
-          </div>
-
-          <!-- 5. خانة المبلغ المدفوع من طرف الزبون -->
-          <div>
-            <label style="font-size: 13px; font-weight: bold;">المدفوع (دج):</label>
-            <input type="number" id="inv-form-paid" class="form-control" placeholder="0" oninput="calcFormDebt()">
-          </div>
-
-          <!-- 6. خانة تاريخ تسليم المبلغ المدفوع -->
-          <div>
-            <label style="font-size: 13px; font-weight: bold;">تاريخ الدفع:</label>
-            <input type="date" id="inv-form-paydate" class="form-control">
-          </div>
-
-          <!-- 7. خانة الدين المحسوب تلقائياً (الدين = مبلغ الفاتورة - المدفوع) -->
-          <div>
-            <label style="font-size: 13px; font-weight: bold;">الدين المحسوب (دج):</label>
-            <input type="number" id="inv-form-debt" class="form-control" placeholder="0" readonly style="background: #eef2f7; font-weight: bold;">
-          </div>
-
-          <!-- 8. خانة الملاحظات (مثل بونيس، إرجاع علب، روثور...) -->
-          <div>
-            <label style="font-size: 13px; font-weight: bold;">الملاحظات:</label>
-            <input type="text" id="inv-form-notes" class="form-control" placeholder="بونيس، روثور...">
-          </div>
-
-          <!-- 9. زر تنفيذ عملية الحفظ في قاعدة البيانات -->
-          <div>
-            <button class="btn-action" style="width: 100%; height: 42px; background: #27ae60;" onclick="submitNewInvoiceRow()">
-              <i class="fa-solid fa-floppy-disk"></i> حفظ الفاتورة
-            </button>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- ------------------------------------------------------------------- -->
-      <!-- جدول عرض كافة الفواتير والدفعات المسجلة (مطابق لترتيب ورقة الإكسيل) -->
-      <!-- ------------------------------------------------------------------- -->
+      <!-- جدول عرض الفواتير المنسق والمطابق لورقة العمل -->
       <div class="table-container">
         <table>
           <thead>
@@ -508,9 +488,9 @@
               <th>تاريخ الدفع</th>
               <th>الدين</th>
               <th>الملاحظات</th>
+              <th>خيارات الطباعة</th>
             </tr>
           </thead>
-          <!-- يتم ملء هذا الجزء آلياً عبر دالة loadInvoicesTable في app.js -->
           <tbody id="invoices-tbody"></tbody>
         </table>
       </div>
