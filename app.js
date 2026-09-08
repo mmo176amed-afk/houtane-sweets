@@ -129,18 +129,25 @@ function logout() {
 }
 
 /**
- * جلب المنتجات والزبائن إلى الذاكرة المؤقتة للتطبيق
+ * جلب المنتجات والزبائن إلى الذاكرة المؤقتة للتطبيق بطريقة آمنة
  */
 async function preloadData() {
   showLoader(true);
   try {
-    // 1. جلب المنتجات المسجلة في جدول products
+    // 1. جلب المنتجات من جدول products
     const { data: prods, error: pErr } = await db.from('products').select('*').order('id', { ascending: true });
-    if (pErr) throw pErr;
+    if (pErr) console.warn("ملاحظة في جدول products:", pErr.message);
 
-    // 2. جلب أسماء المنتجات من جدول production_costs
-    const { data: costProds } = await db.from('production_costs').select('product_name');
+    // 2. محاولة جلب المنتجات من جدول production_costs
+    let costProds = [];
+    try {
+      const { data: cData } = await db.from('production_costs').select('product_name');
+      if (cData) costProds = cData;
+    } catch (err) {
+      console.warn("جدول production_costs غير موجود أو فارغ");
+    }
     
+    // بناء مصفوفة المنتجات الأساسية الموحدة
     const mainList = (prods || []).map(p => ({
       id: p.id,
       name: (p.name || '').trim(),
@@ -170,7 +177,10 @@ async function preloadData() {
 
     // 3. جلب قائمة الزبائن من جدول customers
     const { data: custs, error: cErr } = await db.from('customers').select('*').order('id', { ascending: true });
-    if (cErr) throw cErr;
+    if (cErr) {
+      console.warn("ملاحظة في جدول customers:", cErr.message);
+      throw new Error(`خطأ في جدول الزبائن: ${cErr.message}`);
+    }
 
     customersCache = (custs || []).map(c => ({
       id: c.id,
@@ -182,12 +192,11 @@ async function preloadData() {
     populateProductDatalist();
   } catch (e) {
     console.error("Error preloading data:", e);
-    showAlert("خطأ أثناء جلب البيانات من قاعدة البيانات!");
+    showAlert("تفاصيل الخطأ: " + e.message);
   } finally {
     showLoader(false);
   }
 }
-
 // =========================================================================
 // [5] واجهة إضافة وتعديل المنتجات
 // =========================================================================
