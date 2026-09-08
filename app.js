@@ -468,7 +468,7 @@ function refreshAllItemDropdowns() {
 }
 
 /**
- * إضافة سطر جديد للفاتورة بشكل ديناميكي
+ * إضافة سطر جديد للفاتورة بشكل ديناميكي (مع تفعيل الإضافة التلقائية عند آخر خانة)
  */
 function addInvoiceItemRow() {
   const container = document.getElementById('invoice-items-container');
@@ -491,7 +491,7 @@ function addInvoiceItemRow() {
       <input type="number" class="form-control item-price" placeholder="السعر" style="font-weight: bold;">
     </div>
     <div>
-      <input type="number" class="form-control item-qty" placeholder="الكمية" style="font-weight: bold;">
+      <input type="number" class="form-control item-qty" placeholder="الكمية" style="font-weight: bold;" oninput="handleAutoAddInvoiceRow('${rowId}')">
     </div>
     <div>
       <button class="btn-action btn-secondary" style="padding: 6px 10px; background: #e74c3c;" onclick="removeInvoiceItemRow('${rowId}')">
@@ -504,6 +504,26 @@ function addInvoiceItemRow() {
   refreshAllItemDropdowns();
 }
 
+/**
+ * التحقق من الكتابة في خانة الكمية للسطر الأخير، وإضافة سطر جديد تلقائياً
+ * @param {string} currentRowId - معرف السطر الحالي
+ */
+function handleAutoAddInvoiceRow(currentRowId) {
+  const container = document.getElementById('invoice-items-container');
+  const allRows = container.querySelectorAll(':scope > div');
+  
+  if (allRows.length === 0) return;
+
+  // التحقق إن كان السطر الحالي هو السطر الأخير في القائمة
+  const lastRow = allRows[allRows.length - 1];
+  if (lastRow.id === currentRowId) {
+    const qtyInput = lastRow.querySelector('.item-qty');
+    // إذا تمت كتابة كمية أكبر من صفر، يضاف سطر جديد فوراً
+    if (qtyInput && Number(qtyInput.value) > 0) {
+      addInvoiceItemRow();
+    }
+  }
+}
 /**
  * عند اختيار سلعة داخل سطر الفاتورة: وضع السعر والمخزون الحالي تلقائياً
  */
