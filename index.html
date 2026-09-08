@@ -396,17 +396,105 @@
   </div>
 
   <!-- ======================================================================= -->
-  <!-- [9] واجهة جدول الفواتير والدفعات (Invoices View) -->
+  <!-- [9] واجهة وسجل الفواتير والدفعات مع نموذج الإدخال السريع وزر الإغلاق السنوي -->
   <!-- ======================================================================= -->
   <div id="view-invoices-table" class="view-section">
     <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h3><i class="fa-solid fa-file-invoice-dollar" style="color: var(--success);"></i> سجل الفواتير والدفعات</h3>
-        <button class="btn-action btn-secondary" onclick="showDashboard()">
-          <i class="fa-solid fa-arrow-right"></i> رجوع
-        </button>
+      
+      <!-- ------------------------------------------------------------------- -->
+      <!-- رأس الواجهة: يحتوي على العنوان، زر إغلاق السنة، وزر الرجوع للرئيسية -->
+      <!-- ------------------------------------------------------------------- -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+        <h3>
+          <i class="fa-solid fa-file-invoice-dollar" style="color: var(--success);"></i> 
+          سجل الفواتير والدفعات وإدارة الحسابات
+        </h3>
+        <div>
+          <!-- زر إغلاق السنة المالية ونقل الكريدي المتبقي إلى بطاقة كل زبون (محمي بكلمة سر) -->
+          <button class="btn-action" style="background: #c0392b; margin-left: 8px;" onclick="closeYearAndCarryOverDebt()">
+            <i class="fa-solid fa-calendar-check"></i> إغلاق السنة ونقل الكريدي
+          </button>
+          
+          <!-- زر الرجوع إلى لوحة التحكم الرئيسية -->
+          <button class="btn-action btn-secondary" onclick="showDashboard()">
+            <i class="fa-solid fa-arrow-right"></i> رجوع
+          </button>
+        </div>
       </div>
 
+      <!-- ------------------------------------------------------------------- -->
+      <!-- نموذج تسجيل فاتورة أو دفعة جديدة مباشرة من الموقع -->
+      <!-- ------------------------------------------------------------------- -->
+      <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+        <h4 style="margin-bottom: 12px; color: var(--primary);">
+          <i class="fa-solid fa-plus-circle"></i> تسجيل فاتورة أو دفعة جديدة
+        </h4>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; align-items: end;">
+          
+          <!-- 1. قائمة اختيار اسم الزبون -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">اسم الزبون:</label>
+            <select id="inv-form-customer" class="form-control" onchange="onInvoiceCustomerSelect(this.value)">
+              <option value="">-- اختر الزبون --</option>
+            </select>
+          </div>
+
+          <!-- 2. خانة رقم الفاتورة (يتم توليده آلياً بمجرد اختيار الزبون) -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">رقم الفاتورة:</label>
+            <input type="text" id="inv-form-num" class="form-control" placeholder="رقم الفاتورة">
+          </div>
+
+          <!-- 3. خانة إجمالي مبلغ الفاتورة -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">مبلغ الفاتورة (دج):</label>
+            <input type="number" id="inv-form-amount" class="form-control" placeholder="0" oninput="calcFormDebt()">
+          </div>
+
+          <!-- 4. خانة تاريخ تحرير الفاتورة -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">تاريخ الفاتورة:</label>
+            <input type="date" id="inv-form-date" class="form-control">
+          </div>
+
+          <!-- 5. خانة المبلغ المدفوع من طرف الزبون -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">المدفوع (دج):</label>
+            <input type="number" id="inv-form-paid" class="form-control" placeholder="0" oninput="calcFormDebt()">
+          </div>
+
+          <!-- 6. خانة تاريخ تسليم المبلغ المدفوع -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">تاريخ الدفع:</label>
+            <input type="date" id="inv-form-paydate" class="form-control">
+          </div>
+
+          <!-- 7. خانة الدين المحسوب تلقائياً (الدين = مبلغ الفاتورة - المدفوع) -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">الدين المحسوب (دج):</label>
+            <input type="number" id="inv-form-debt" class="form-control" placeholder="0" readonly style="background: #eef2f7; font-weight: bold;">
+          </div>
+
+          <!-- 8. خانة الملاحظات (مثل بونيس، إرجاع علب، روثور...) -->
+          <div>
+            <label style="font-size: 13px; font-weight: bold;">الملاحظات:</label>
+            <input type="text" id="inv-form-notes" class="form-control" placeholder="بونيس، روثور...">
+          </div>
+
+          <!-- 9. زر تنفيذ عملية الحفظ في قاعدة البيانات -->
+          <div>
+            <button class="btn-action" style="width: 100%; height: 42px; background: #27ae60;" onclick="submitNewInvoiceRow()">
+              <i class="fa-solid fa-floppy-disk"></i> حفظ الفاتورة
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ------------------------------------------------------------------- -->
+      <!-- جدول عرض كافة الفواتير والدفعات المسجلة (مطابق لترتيب ورقة الإكسيل) -->
+      <!-- ------------------------------------------------------------------- -->
       <div class="table-container">
         <table>
           <thead>
@@ -422,15 +510,17 @@
               <th>الملاحظات</th>
             </tr>
           </thead>
+          <!-- يتم ملء هذا الجزء آلياً عبر دالة loadInvoicesTable في app.js -->
           <tbody id="invoices-tbody"></tbody>
         </table>
       </div>
+
     </div>
   </div>
 
 </div>
 
-<!-- استدعاء مكتبة Supabase الرسمية وملف المعالجة البرمجية -->
+<!-- استدعاء مكتبة Supabase الرسمية وملف المعالجة البرمجية app.js -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
 </body>
