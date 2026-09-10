@@ -117,7 +117,12 @@
       </button>
     </div>
   </div>
-
+     <!-- زر السلعة الخارجة (فواتير زبائن الجملة) -->
+      <button class="app-btn" style="background: #27ae60; color: white;" onclick="loadOutgoingGoodsTable()">
+        <i class="fa-solid fa-truck-moving"></i>
+        السلعة الخارجة (فواتير الجملة)
+      </button>
+  
   <!-- ======================================================================= -->
   <!-- [3] واجهة إضافة وتعديل المنتجات (Add/Edit Product View) -->
   <!-- ======================================================================= -->
@@ -530,6 +535,40 @@
   </div>
 
 </div>
+  <!-- ======================================================================= -->
+  <!-- [10] واجهة السلعة الخارجة - فواتير زبائن الجملة (Outgoing Goods View) -->
+  <!-- ======================================================================= -->
+  <div id="view-outgoing-goods" class="view-section">
+    <div class="card" style="max-width: 98%; margin: 0 auto;">
+      
+      <!-- شريط العنوان والرجوع -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+        <h3>
+          <i class="fa-solid fa-truck-moving" style="color: #27ae60;"></i> 
+          السلعة الخارجة (فواتير زبائن الجملة)
+        </h3>
+        <button class="btn-action btn-secondary" onclick="showDashboard()">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <!-- جدول السلعة الخارجة المطابق للإكسل -->
+      <div class="table-container" style="overflow-x: auto; max-height: 75vh;">
+        <table style="min-width: 1300px; text-align: center; border-collapse: collapse;">
+          <thead id="outgoing-thead">
+            <!-- يتم توليد رؤوس الأعمدة وأسماء المنتجات ديناميكياً بنفس ترتيب المخزن -->
+          </thead>
+          <tbody id="outgoing-tbody">
+            <!-- يتم توليد صفوف الفواتير والكميات ديناميكياً -->
+          </tbody>
+          <tfoot id="outgoing-tfoot">
+            <!-- سطر مجاميع كل منتج الذي ينقل تلقائياً لعمود مباعة جملة -->
+          </tfoot>
+        </table>
+      </div>
+
+    </div>
+  </div>
 
   <!-- استدعاء مكتبة Supabase الرسمية وملفات المعالجة البرمجية المقسمة -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
