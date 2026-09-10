@@ -1,6 +1,14 @@
 /**
  * =========================================================================
  * [الفقرة 5] واجهة الوصل، العمليات، الحسابات التلقائية، والبحث والتعديل (invoice_ops.js)
+ * -- نسخة مصححة:
+ *    1) عمود جدول invoice_operations اسمه الفعلي "receipt_number" وليس
+ *       "invoice_number" (هذا الأخير خاص فقط بجدول invoices). كان هذا
+ *       يتسبب بفشل صامت لكل عملية إدراج في invoice_operations، ولهذا
+ *       لم تكن الكميات تظهر أبداً في جدول حالة المخزون (stock.js).
+ *    2) تمت إضافة فحص صريح للأخطاء (error) بعد كل عملية قاعدة بيانات
+ *       بدل تجاهلها بصمت، حتى تظهر أي مشكلة مستقبلية فوراً بدل أن
+ *       تختفي دون أثر.
  * =========================================================================
  */
 
@@ -16,7 +24,7 @@ function formatMoneyDisplay(amount) {
   return num.toLocaleString('fr-FR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  }).replace(/\u202F/g, ' '); // ضمان مسافة عادية بين الآلاف
+  }).replace(/\u202F/g, ' ');
 }
 
 /**
@@ -91,20 +99,17 @@ function setInvoiceOperationType(opType) {
 function refreshInvoiceDropdownOptions() {
   const allSelects = document.querySelectorAll('.inv-item-prod');
   
-  // تجميع كافة المنتجات المختارة حالياً
   const selectedValues = [];
   allSelects.forEach(s => {
     if (s.value) selectedValues.push(s.value);
   });
 
-  // تحديث خيارات كل قائمة مع الاحتفاظ بالمنتج الحالي لكل سطر
   allSelects.forEach(select => {
     const currentVal = select.value;
     select.innerHTML = '<option value="">-- اختر الحلوى --</option>';
 
     productsCache.forEach(p => {
       const pIdentifier = String(p.id !== null ? p.id : p.name);
-      // يظهر المنتج إذا كان هو المختار في هذا السطر أو غير مختار في أي سطر آخر إطلاقاً
       if (pIdentifier === currentVal || !selectedValues.includes(pIdentifier)) {
         const opt = document.createElement('option');
         opt.value = pIdentifier;
@@ -288,7 +293,6 @@ function calculateInvoiceFinancials() {
   const grandTotal = totalGoods + oldDebt + adjustment;
   const newDebt = grandTotal - paid;
 
-  // إظهار النتائج بالفراغات والفاصلة بدقة
   const totalGoodsEl = document.getElementById('inv-total-goods');
   const grandTotalEl = document.getElementById('inv-grand-total');
   const newDebtEl = document.getElementById('inv-new-debt');
@@ -300,6 +304,7 @@ function calculateInvoiceFinancials() {
 
 /**
  * 11. جلب وصل سابق للتعديل
+ *     -- مصححة: البحث في invoice_operations يتم عبر receipt_number
  */
 async function searchAndLoadInvoice() {
   const searchNum = document.getElementById('inv-search-input').value.trim();
@@ -322,10 +327,11 @@ async function searchAndLoadInvoice() {
       return;
     }
 
+    // ✅ تصحيح: البحث في invoice_operations يجب أن يكون بعمود receipt_number
     const { data: items, error: itemsErr } = await db
       .from('invoice_operations')
       .select('*')
-      .eq('invoice_number', searchNum);
+      .eq('receipt_number', searchNum);
 
     if (itemsErr) throw itemsErr;
 
@@ -390,6 +396,11 @@ function cancelInvoiceEditMode() {
 
 /**
  * 13. الحفظ النهائي وترحيل البيانات
+ *     -- مصححة:
+ *        1) استخدام receipt_number بدل invoice_number عند التعامل مع
+ *           جدول invoice_operations (حذف وإدراج).
+ *        2) فحص صريح لأي خطأ عند إدراج invoice_operations وعند تحديث
+ *           المخزون في products، بدل تجاهل الأخطاء بصمت كما كان سابقاً.
  */
 async function submitCompleteInvoice() {
   const customerName = document.getElementById('inv-customer-select').value;
@@ -430,17 +441,33 @@ async function submitCompleteInvoice() {
     }
   });
 
+  if (itemsToProcess.length === 0) {
+    showAlert("يرجى اختيار منتج واحد على الأقل وتحديد الكمية!");
+    return;
+  }
+
   showLoader(true);
   try {
     if (isEditMode) {
-      await db.from('invoice_operations').delete().eq('invoice_number', invoiceNum);
-      await db.from('invoices').delete().eq('invoice_number', invoiceNum);
+      // ✅ تصحيح: الحذف من invoice_operations يجب أن يكون بعمود receipt_number
+      const { error: delOpsErr } = await db
+        .from('invoice_operations')
+        .delete()
+        .eq('receipt_number', invoiceNum);
+      if (delOpsErr) throw delOpsErr;
+
+      const { error: delInvErr } = await db
+        .from('invoices')
+        .delete()
+        .eq('invoice_number', invoiceNum);
+      if (delInvErr) throw delInvErr;
     }
 
     for (const item of itemsToProcess) {
-      await db.from('invoice_operations').insert([{
+      // ✅ تصحيح: receipt_number بدل invoice_number + فحص الخطأ صراحة
+      const { error: opInsertErr } = await db.from('invoice_operations').insert([{
         customer_name: customerName,
-        invoice_number: invoiceNum,
+        receipt_number: invoiceNum,
         operation_type: currentInvoiceOperationType,
         product_name: item.prodName,
         price: item.price,
@@ -448,12 +475,20 @@ async function submitCompleteInvoice() {
         operation_date: invoiceDate
       }]);
 
+      if (opInsertErr) throw opInsertErr;
+
       if (!isEditMode && item.prodId) {
         const prod = productsCache.find(p => p.id === item.prodId);
         if (prod) {
           let currentStock = Number(prod.currentStock) || 0;
           let updatedStock = currentInvoiceOperationType === 'وصل جديد (توزيع)' ? currentStock - item.qty : currentStock + item.qty;
-          await db.from('products').update({ current_stock: updatedStock }).eq('id', item.prodId);
+
+          const { error: stockUpdateErr } = await db
+            .from('products')
+            .update({ current_stock: updatedStock })
+            .eq('id', item.prodId);
+
+          if (stockUpdateErr) throw stockUpdateErr;
         }
       }
     }
@@ -476,7 +511,12 @@ async function submitCompleteInvoice() {
       if (!isEditMode) {
         updateData.last_invoice_seq = (cust.lastInvoiceSeq || 0) + 1;
       }
-      await db.from('customers').update(updateData).eq('id', cust.id);
+      const { error: custUpdateErr } = await db
+        .from('customers')
+        .update(updateData)
+        .eq('id', cust.id);
+
+      if (custUpdateErr) throw custUpdateErr;
     }
 
     showAlert(isEditMode ? "تم تحديث وحفظ بيانات الوصل بنجاح!" : "تم تسجيل وتأكيد الوصل وترحيله بنجاح!");
