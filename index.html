@@ -72,56 +72,57 @@
       </div>
     </div>
 
-    <!-- شبكة أزرار الوصول السريع للأقسام -->
+    <!-- شبكة أزرار الوصول السريع للأقسام (8 أزرار: 4 في السطر الأول و 4 في السطر الثاني) -->
     <div class="btn-grid">
-      <!-- زر إضافة وتعديل المنتجات [3] -->
+      <!-- 1. زر إضافة وتعديل المنتجات -->
       <button class="app-btn btn-p1" onclick="showView('view-add-product')">
         <i class="fa-solid fa-box-open"></i>
         إضافة وتعديل المنتجات
       </button>
 
-      <!-- زر إدارة الزبائن والموزعين [4] -->
+      <!-- 2. زر إدارة الزبائن والموزعين -->
       <button class="app-btn btn-p2" onclick="showView('view-add-customer')">
         <i class="fa-solid fa-users"></i>
         إدارة الزبائن والموزعين
       </button>
 
-      <!-- زر تسجيل الوصل والعمليات [5] -->
+      <!-- 3. زر تسجيل الوصل والعمليات -->
       <button class="app-btn btn-p3" onclick="openInvoiceView()">
         <i class="fa-solid fa-truck-ramp-box"></i>
         وصل جديد والعمليات على المنتجات
       </button>
 
-      <!-- زر جرد الباقي وحساب المباع [6] -->
+      <!-- 4. زر جرد الباقي وحساب المباع -->
       <button class="app-btn btn-p4" onclick="openInventoryView()">
         <i class="fa-solid fa-calculator"></i>
         جرد الباقي وحساب المباع
       </button>
 
-       <!-- زر حساب تكلفة الإنتاج [7] -->
-     <button class="app-btn" style="background: #2c3e50; color: white;" onclick="showProductionCostView()">
-     <i class="fa-solid fa-chart-pie"></i>
-     حساب تكلفة الإنتاج
-     </button>
+      <!-- 5. زر حساب تكلفة الإنتاج -->
+      <button class="app-btn" style="background: #2c3e50; color: white;" onclick="showProductionCostView()">
+        <i class="fa-solid fa-chart-pie"></i>
+        حساب تكلفة الإنتاج
+      </button>
 
-      <!-- زر سجل الفواتير والدفعات [9] -->
+      <!-- 6. زر سجل الفواتير والدفعات -->
       <button class="app-btn btn-p5" onclick="loadInvoicesTable()">
         <i class="fa-solid fa-file-invoice-dollar"></i>
         سجل الفواتير والدفعات
       </button>
 
-      <!-- زر عرض المخزون الحالي [8] -->
+      <!-- 7. زر عرض المخزون الحالي -->
       <button class="app-btn btn-p6" onclick="loadStockTable()">
         <i class="fa-solid fa-boxes-stacked"></i>
         عرض حالة المخزن الحالي
       </button>
-    </div>
-  </div>
-     <!-- زر السلعة الخارجة (فواتير زبائن الجملة) -->
+
+      <!-- 8. زر السلعة الخارجة (يأتي داخل الشبكة مباشرة تحت زر جرد الباقي) -->
       <button class="app-btn" style="background: #27ae60; color: white;" onclick="loadOutgoingGoodsTable()">
         <i class="fa-solid fa-truck-moving"></i>
         السلعة الخارجة (فواتير الجملة)
       </button>
+    </div> <!-- إغلاق btn-grid -->
+  </div>   <!-- إغلاق view-dashboard -->
   
   <!-- ======================================================================= -->
   <!-- [3] واجهة إضافة وتعديل المنتجات (Add/Edit Product View) -->
