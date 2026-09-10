@@ -361,7 +361,7 @@
         </button>
       </div>
 
-      <!-- [أ] قسم خروج السلعة (صباحاً) -->
+     <!-- [أ] قسم خروج السلعة (صباحاً) بالنظام المرن -->
       <div id="retail-sec-morning">
         <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
           <div style="display: flex; gap: 20px; flex-wrap: wrap;">
@@ -377,27 +377,22 @@
         </div>
 
         <h4 style="color: #0369a1; margin-bottom: 12px;">قائمة السلع المستلمة:</h4>
-        <div class="table-container">
-          <table style="width: 100%; text-align: center;">
-            <thead>
-              <tr style="background: #0284c7; color: white;">
-                <th style="width: 5%;">#</th>
-                <th style="width: 45%;">المنتج</th>
-                <th style="width: 15%;">المخزن المتوفر</th>
-                <th style="width: 15%;">سعر التجزئة</th>
-                <th style="width: 20%;">الكمية الخارجة</th>
-              </tr>
-            </thead>
-            <tbody id="morning-items-tbody"></tbody>
-          </table>
+        
+        <!-- حاوية أسطر المنتجات الديناميكية والتوليد التلقائي -->
+        <div id="morning-items-container"></div>
+
+        <div style="margin-top: 12px;">
+          <button type="button" class="btn-action" style="background: #334155; color: white;" onclick="addMorningItemRow()">
+            <i class="fa-solid fa-plus"></i> إضافة سطر منتج آخر
+          </button>
         </div>
-        <div style="text-align: left; margin-top: 15px;">
+
+        <div style="text-align: left; margin-top: 20px;">
           <button class="btn-action" style="background: #0284c7; color: white; padding: 10px 25px; font-size: 16px;" onclick="saveMorningDelivery()">
             <i class="fa-solid fa-floppy-disk"></i> تثبيت خروج السلعة للصباح
           </button>
         </div>
       </div>
-
       <!-- [ب] قسم جرد المساء وحساب المباع والمصاريف -->
       <div id="retail-sec-evening" style="display: none;">
         <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
