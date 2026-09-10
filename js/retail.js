@@ -3,25 +3,32 @@
  * وحدة إدارة وتوزيع التجزئة وجرد الموزعين اليومي (Houtane Sweets)
  * الملف: js/retail.js
  * =========================================================================
+ * المميزات المتوفرة في هذا الملف:
+ * 1. حساب الرصيد الحقيقي للمخزن بدقة مطابقة 100% لجدول حالة المخزون (stock.js).
+ * 2. منع تكرار اختيار المنتجات في الأسطر (إخفاء المنتج المختار من بقية القوائم).
+ * 3. توليد سطر جديد تلقائياً بمجرد إدخال الكمية في آخر سطر.
+ * 4. جرد المساء وحساب الكميات المباعة والصافي المالي لحظياً.
+ * 5. جدول سجل وفواتير التجزئة التراكمي الشامل.
+ * =========================================================================
  */
 
 let allProductsList = [];
 let activeMorningRecord = null;
 
 /**
- * 1. دالة فتح وتهيئة واجهة "خروج السلعة صباحاً" (التجزئة)
- * تحسب الرصيد الحقيقي للمخزون بدقة متطابقة 100% مع عمود (الحقيقي بالمخزن) في stock.js
+ * 1. دالة فتح وتهيئة واجهة التجزئة والموزعين
  */
 async function openRetailDistributionView() {
   showView('view-retail-dist');
   showLoader(true);
 
   try {
+    // ضبط تاريخ اليوم تلقائياً في حقلي الصباح والمساء
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('morning-date').value = today;
     document.getElementById('evening-date').value = today;
 
-    // 1. جلب قائمة كل المنتجات من جدول "products"
+    // جلب قائمة كل المنتجات من جدول products
     const { data: prods, error: pErr } = await db
       .from('products')
       .select('*')
@@ -29,14 +36,14 @@ async function openRetailDistributionView() {
 
     if (pErr) throw pErr;
 
-    // 2. جلب كل العمليات المسجلة من جدول "invoice_operations"
+    // جلب العمليات والحركات من جدول invoice_operations
     const { data: ops, error: opsErr } = await db
       .from('invoice_operations')
       .select('*');
 
     if (opsErr) throw opsErr;
 
-    // 3. تجميع كل الحركات الخاصة بكل منتج على حدة
+    // تجميع الحركات لكل منتج (نفس منطق stock.js تماماً)
     const opsSummary = {};
     (ops || []).forEach(op => {
       const pName = op.product_name;
@@ -66,16 +73,13 @@ async function openRetailDistributionView() {
       }
     });
 
-    // 4. حساب "الرصيد الحقيقي" لكل منتج (مطابق لعمود 11 الحقيقي بالمخزن)
+    // حساب الرصيد الحقيقي بالمخزن لكل منتج (العمود 11)
     allProductsList = (prods || []).map(p => {
       const s = opsSummary[p.name] || {
         produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0
       };
 
-      // المخزون الأساسي (حالة المخزن)
       const baseStock = Number(p.current_stock) || 0;
-
-      // تطبيق معادلة المخزن الحقيقي
       const realStock = (baseStock + s.produced + s.returned)
                        - (s.wholesaleSold + s.wasteAndGifts + s.retailSold);
 
@@ -85,8 +89,12 @@ async function openRetailDistributionView() {
       };
     });
 
-    // 5. جلب قائمة الزبائن/الموزعين
-    const { data: custs, error: cErr } = await db.from('customers').select('name').order('name');
+    // جلب قائمة الزبائن والموزعين
+    const { data: custs, error: cErr } = await db
+      .from('customers')
+      .select('name')
+      .order('name');
+      
     if (cErr) throw cErr;
 
     const fillSelect = (elId) => {
@@ -100,7 +108,7 @@ async function openRetailDistributionView() {
     fillSelect('morning-distributor');
     fillSelect('evening-distributor');
 
-    // 6. تهيئة حاوية أسطر الصباح وإضافة أول سطر
+    // تهيئة حاوية أسطر الصباح وإضافة أول سطر
     const container = document.getElementById('morning-items-container');
     container.innerHTML = '';
     addMorningItemRow();
@@ -108,14 +116,14 @@ async function openRetailDistributionView() {
     switchRetailTab('morning');
 
   } catch (err) {
-    showAlert("خطأ في جلب بيانات المنتجات: " + err.message);
+    showAlert("خطأ في جلب بيانات المنتجات والمخزن: " + err.message);
   } finally {
     showLoader(false);
   }
 }
 
 /**
- * 2. دالة التبديل بين التبويبات الثلاثة
+ * 2. دالة التبديل بين التبويبات (الصباح / المساء / التقرير)
  */
 function switchRetailTab(tab) {
   document.getElementById('retail-sec-morning').style.display = tab === 'morning' ? 'block' : 'none';
@@ -132,16 +140,25 @@ function switchRetailTab(tab) {
 }
 
 /**
- * 3. دالة إنشاء سطر جديد لاختيار السلع الصباحية مع المراقبة التلقائية
+ * 3. دالة إضافة سطر جديد لخروج السلعة (تستثني المنتجات المختارة مسبقاً لمنع التكرار)
  */
 function addMorningItemRow(selectedProdId = "", qty = "") {
   const container = document.getElementById('morning-items-container');
   const rowId = 'm-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 
+  // جلب معرفات كافة المنتجات المختارة في الأسطر الأخرى
+  const selectedProductIds = Array.from(container.querySelectorAll('.m-prod-select'))
+    .map(sel => sel.value)
+    .filter(val => val !== "");
+
+  // بناء خيارات القائمة دون المنتجات المستهلكة في أسطر أخرى
   let optionsHtml = '<option value="">-- اختر الحلوى --</option>';
   allProductsList.forEach(p => {
-    const isSelected = String(p.id) === String(selectedProdId) ? 'selected' : '';
-    optionsHtml += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
+    const isChosenElsewhere = selectedProductIds.includes(String(p.id)) && String(p.id) !== String(selectedProdId);
+    if (!isChosenElsewhere) {
+      const isSelected = String(p.id) === String(selectedProdId) ? 'selected' : '';
+      optionsHtml += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
+    }
   });
 
   const rowDiv = document.createElement('div');
@@ -154,18 +171,23 @@ function addMorningItemRow(selectedProdId = "", qty = "") {
   rowDiv.style.marginBottom = '10px';
 
   rowDiv.innerHTML = `
-    <button type="button" class="btn-action" style="background: #e11d48; color: white; padding: 6px; height: 38px;" onclick="document.getElementById('${rowId}').remove()">
+    <!-- زر حذف السطر -->
+    <button type="button" class="btn-action" style="background: #e11d48; color: white; padding: 6px; height: 38px;" onclick="removeMorningRow('${rowId}')">
       <i class="fa-solid fa-xmark"></i>
     </button>
     
+    <!-- القائمة المنسدلة للحلوى -->
     <select class="form-control m-prod-select" onchange="onMorningProductSelect(this, '${rowId}')">
       ${optionsHtml}
     </select>
 
+    <!-- شارة رصيد المخزن الحقيقي -->
     <span class="m-stock-badge" style="color: #dc2626; font-weight: bold; font-size: 13px; text-align: center;">مخزن: 0</span>
 
+    <!-- سعر التجزئة -->
     <input type="text" class="form-control m-price-input" readonly placeholder="السعر" style="text-align: center; background: #f8fafc; font-weight: bold;">
 
+    <!-- خانة الكمية (تولد سطراً جديداً تلقائياً عند آخر سطر) -->
     <input type="number" class="form-control m-qty-input" min="1" placeholder="الكمية" value="${qty}" style="text-align: center;" oninput="handleAutoRowAdd(this)">
   `;
 
@@ -178,7 +200,18 @@ function addMorningItemRow(selectedProdId = "", qty = "") {
 }
 
 /**
- * 4. دالة تحديث السعر والرصيد الحقيقي عند اختيار المنتج
+ * 4. دالة حذف السطر وإعادة إتاحة المنتج في بقية القوائم
+ */
+function removeMorningRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (row) {
+    row.remove();
+    refreshAllMorningSelectOptions();
+  }
+}
+
+/**
+ * 5. تحديث السعر والمخزن الحقيقي وإعادة فلترة القوائم لمنع التكرار
  */
 function onMorningProductSelect(selectEl, rowId) {
   const prodId = selectEl.value;
@@ -189,18 +222,54 @@ function onMorningProductSelect(selectEl, rowId) {
   if (!prodId) {
     stockBadge.innerText = 'مخزن: 0';
     priceInput.value = '';
-    return;
+  } else {
+    const prod = allProductsList.find(p => String(p.id) === String(prodId));
+    if (prod) {
+      stockBadge.innerText = `مخزن: ${prod.real_stock !== undefined ? prod.real_stock : 0}`;
+      priceInput.value = prod.retail_price || 0;
+    }
   }
 
-  const prod = allProductsList.find(p => String(p.id) === String(prodId));
-  if (prod) {
-    stockBadge.innerText = `مخزن: ${prod.real_stock !== undefined ? prod.real_stock : 0}`;
-    priceInput.value = prod.retail_price || 0;
-  }
+  // تحديث القوائم المنسدلة في كافة الأسطر لإخفاء المنتج المختار
+  refreshAllMorningSelectOptions();
 }
 
 /**
- * 5. فحص آخر سطر وتوليد سطر جديد تلقائياً عند إدخال الكمية
+ * دالة مساعدة لتحديث خيارات جميع القوائم المنسدلة فوراً
+ */
+function refreshAllMorningSelectOptions() {
+  const container = document.getElementById('morning-items-container');
+  if (!container) return;
+
+  const rows = container.querySelectorAll('.invoice-item-row');
+  
+  // تجميع كل ما هو مختار حالياً
+  const selectedValues = Array.from(rows)
+    .map(r => r.querySelector('.m-prod-select')?.value)
+    .filter(val => val && val !== "");
+
+  // تحديث كل سطر على حدة
+  rows.forEach(r => {
+    const select = r.querySelector('.m-prod-select');
+    if (!select) return;
+
+    const currentVal = select.value;
+    let newHtml = '<option value="">-- اختر الحلوى --</option>';
+
+    allProductsList.forEach(p => {
+      const isTakenByOther = selectedValues.includes(String(p.id)) && String(p.id) !== String(currentVal);
+      if (!isTakenByOther) {
+        const isSelected = String(p.id) === String(currentVal) ? 'selected' : '';
+        newHtml += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
+      }
+    });
+
+    select.innerHTML = newHtml;
+  });
+}
+
+/**
+ * 6. فحص السطر الأخير وتوليد سطر جديد تلقائياً
  */
 function handleAutoRowAdd(inputEl) {
   const currentRow = inputEl.closest('.invoice-item-row');
@@ -208,12 +277,18 @@ function handleAutoRowAdd(inputEl) {
   const allRows = container.querySelectorAll('.invoice-item-row');
 
   if (inputEl.value.trim() !== "" && currentRow === allRows[allRows.length - 1]) {
-    addMorningItemRow();
+    // التأكد من وجود منتجات متبقية لم تُختر بعد
+    const selectedCount = Array.from(container.querySelectorAll('.m-prod-select'))
+      .filter(s => s.value !== "").length;
+
+    if (selectedCount < allProductsList.length) {
+      addMorningItemRow();
+    }
   }
 }
 
 /**
- * 6. حفظ خروج السلعة للصباح
+ * 7. حفظ وتثبيت خروج السلع للصباح
  */
 async function saveMorningDelivery() {
   const distName = document.getElementById('morning-distributor').value;
@@ -278,7 +353,7 @@ async function saveMorningDelivery() {
 }
 
 /**
- * 7. جلب بيانات الصباح للمساء
+ * 8. جلب بيانات استلام الصباح لعرضها في جرد المساء
  */
 async function loadEveningDeliveryData() {
   const distName = document.getElementById('evening-distributor').value;
@@ -342,7 +417,7 @@ async function loadEveningDeliveryData() {
 }
 
 /**
- * 8. احتساب المباع وقيمته
+ * 9. احتساب المباع وقيمته فور تعديل الباقي
  */
 function calcRowSold(prodId, outQty, price) {
   const retInput = document.getElementById(`e-ret-${prodId}`);
@@ -363,7 +438,7 @@ function calcRowSold(prodId, outQty, price) {
 }
 
 /**
- * 9. حساب التصفية المالية والصافي
+ * 10. حساب التصفية المالية والصافي المطلوب تسليمه
  */
 function calculateEveningFinal() {
   if (!activeMorningRecord) {
@@ -393,7 +468,7 @@ function calculateEveningFinal() {
 }
 
 /**
- * 10. حفظ وتأكيد إقفال الحساب اليومي
+ * 11. إقفال الحساب اليومي وتأكيد مبيعات التجزئة
  */
 async function saveEveningSettlement() {
   if (!activeMorningRecord) {
@@ -450,7 +525,7 @@ async function saveEveningSettlement() {
 }
 
 /**
- * 11. جدول تقرير التجزئة الشامل المطابق للإكسل
+ * 12. جدول تقرير التجزئة الشامل المطابق للإكسل
  */
 async function loadRetailReportTable() {
   showLoader(true);
