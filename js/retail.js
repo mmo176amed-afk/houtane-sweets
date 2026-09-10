@@ -500,13 +500,13 @@ async function saveEveningSettlement() {
     // customer_name, invoice_number, operation_type, product_name, price, quantity, operation_date
     if (!alreadyClosed) {
       // رقم وصل اصطناعي وفريد لكل تصفية يومية، يجمع كل أسطرها معاً لتتبعها لاحقاً
-      const retailInvoiceNumber = `TJZ-${activeMorningRecord.dist_date}-${activeMorningRecord.id}`;
+      const retailReceiptNumber = `TJZ-${activeMorningRecord.dist_date}-${activeMorningRecord.id}`;
 
       const opsToInsert = updatedItems
         .filter(item => item.sold_qty > 0)
         .map(item => ({
           customer_name: activeMorningRecord.distributor_name,
-          invoice_number: retailInvoiceNumber,
+          receipt_number: retailReceiptNumber,
           operation_type: 'بيع تجزئة',
           product_name: item.product_name,
           price: item.retail_price,
