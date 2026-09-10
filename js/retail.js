@@ -2,13 +2,9 @@
  * =========================================================================
  * وحدة إدارة وتوزيع التجزئة وجرد الموزعين اليومي (Houtane Sweets)
  * الملف: js/retail.js
- * =========================================================================
- * المميزات المتوفرة في هذا الملف:
- * 1. حساب الرصيد الحقيقي للمخزن بدقة مطابقة 100% لجدول حالة المخزون (stock.js).
- * 2. منع تكرار اختيار المنتجات في الأسطر (إخفاء المنتج المختار من بقية القوائم).
- * 3. توليد سطر جديد تلقائياً بمجرد إدخال الكمية في آخر سطر.
- * 4. جرد المساء وحساب الكميات المباعة والصافي المالي لحظياً.
- * 5. جدول سجل وفواتير التجزئة التراكمي الشامل.
+ * -- تعديل: عند إقفال حساب المساء، تُسجَّل الكميات المباعة كعمليات
+ *    "بيع تجزئة" في جدول invoice_operations، لتظهر تلقائياً في عمود
+ *    "مباعة تجزئة (-)" داخل جدول حالة المخزون (stock.js).
  * =========================================================================
  */
 
@@ -23,12 +19,10 @@ async function openRetailDistributionView() {
   showLoader(true);
 
   try {
-    // ضبط تاريخ اليوم تلقائياً في حقلي الصباح والمساء
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('morning-date').value = today;
     document.getElementById('evening-date').value = today;
 
-    // جلب قائمة كل المنتجات من جدول products
     const { data: prods, error: pErr } = await db
       .from('products')
       .select('*')
@@ -36,25 +30,23 @@ async function openRetailDistributionView() {
 
     if (pErr) throw pErr;
 
-    // جلب العمليات والحركات من جدول invoice_operations
     const { data: ops, error: opsErr } = await db
       .from('invoice_operations')
       .select('*');
 
     if (opsErr) throw opsErr;
 
-    // تجميع الحركات لكل منتج (نفس منطق stock.js تماماً)
     const opsSummary = {};
     (ops || []).forEach(op => {
       const pName = op.product_name;
 
       if (!opsSummary[pName]) {
         opsSummary[pName] = {
-          produced: 0,       // المنتجة (+)
-          wholesaleSold: 0,  // مباعة جملة (-)
-          wasteAndGifts: 0,  // تالفة + هدايا (-)
-          returned: 0,       // مسترجعة (+)
-          retailSold: 0      // مباعة تجزئة (-)
+          produced: 0,
+          wholesaleSold: 0,
+          wasteAndGifts: 0,
+          returned: 0,
+          retailSold: 0
         };
       }
 
@@ -73,7 +65,6 @@ async function openRetailDistributionView() {
       }
     });
 
-    // حساب الرصيد الحقيقي بالمخزن لكل منتج (العمود 11)
     allProductsList = (prods || []).map(p => {
       const s = opsSummary[p.name] || {
         produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0
@@ -89,7 +80,6 @@ async function openRetailDistributionView() {
       };
     });
 
-    // جلب قائمة الزبائن والموزعين
     const { data: custs, error: cErr } = await db
       .from('customers')
       .select('name')
@@ -108,7 +98,6 @@ async function openRetailDistributionView() {
     fillSelect('morning-distributor');
     fillSelect('evening-distributor');
 
-    // تهيئة حاوية أسطر الصباح وإضافة أول سطر
     const container = document.getElementById('morning-items-container');
     container.innerHTML = '';
     addMorningItemRow();
@@ -146,12 +135,10 @@ function addMorningItemRow(selectedProdId = "", qty = "") {
   const container = document.getElementById('morning-items-container');
   const rowId = 'm-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 
-  // جلب معرفات كافة المنتجات المختارة في الأسطر الأخرى
   const selectedProductIds = Array.from(container.querySelectorAll('.m-prod-select'))
     .map(sel => sel.value)
     .filter(val => val !== "");
 
-  // بناء خيارات القائمة دون المنتجات المستهلكة في أسطر أخرى
   let optionsHtml = '<option value="">-- اختر الحلوى --</option>';
   allProductsList.forEach(p => {
     const isChosenElsewhere = selectedProductIds.includes(String(p.id)) && String(p.id) !== String(selectedProdId);
@@ -171,23 +158,18 @@ function addMorningItemRow(selectedProdId = "", qty = "") {
   rowDiv.style.marginBottom = '10px';
 
   rowDiv.innerHTML = `
-    <!-- زر حذف السطر -->
     <button type="button" class="btn-action" style="background: #e11d48; color: white; padding: 6px; height: 38px;" onclick="removeMorningRow('${rowId}')">
       <i class="fa-solid fa-xmark"></i>
     </button>
     
-    <!-- القائمة المنسدلة للحلوى -->
     <select class="form-control m-prod-select" onchange="onMorningProductSelect(this, '${rowId}')">
       ${optionsHtml}
     </select>
 
-    <!-- شارة رصيد المخزن الحقيقي -->
     <span class="m-stock-badge" style="color: #dc2626; font-weight: bold; font-size: 13px; text-align: center;">مخزن: 0</span>
 
-    <!-- سعر التجزئة -->
     <input type="text" class="form-control m-price-input" readonly placeholder="السعر" style="text-align: center; background: #f8fafc; font-weight: bold;">
 
-    <!-- خانة الكمية (تولد سطراً جديداً تلقائياً عند آخر سطر) -->
     <input type="number" class="form-control m-qty-input" min="1" placeholder="الكمية" value="${qty}" style="text-align: center;" oninput="handleAutoRowAdd(this)">
   `;
 
@@ -230,25 +212,19 @@ function onMorningProductSelect(selectEl, rowId) {
     }
   }
 
-  // تحديث القوائم المنسدلة في كافة الأسطر لإخفاء المنتج المختار
   refreshAllMorningSelectOptions();
 }
 
-/**
- * دالة مساعدة لتحديث خيارات جميع القوائم المنسدلة فوراً
- */
 function refreshAllMorningSelectOptions() {
   const container = document.getElementById('morning-items-container');
   if (!container) return;
 
   const rows = container.querySelectorAll('.invoice-item-row');
   
-  // تجميع كل ما هو مختار حالياً
   const selectedValues = Array.from(rows)
     .map(r => r.querySelector('.m-prod-select')?.value)
     .filter(val => val && val !== "");
 
-  // تحديث كل سطر على حدة
   rows.forEach(r => {
     const select = r.querySelector('.m-prod-select');
     if (!select) return;
@@ -277,7 +253,6 @@ function handleAutoRowAdd(inputEl) {
   const allRows = container.querySelectorAll('.invoice-item-row');
 
   if (inputEl.value.trim() !== "" && currentRow === allRows[allRows.length - 1]) {
-    // التأكد من وجود منتجات متبقية لم تُختر بعد
     const selectedCount = Array.from(container.querySelectorAll('.m-prod-select'))
       .filter(s => s.value !== "").length;
 
@@ -469,6 +444,8 @@ function calculateEveningFinal() {
 
 /**
  * 11. إقفال الحساب اليومي وتأكيد مبيعات التجزئة
+ *     -- تعديل: بعد الإقفال، تُنشأ تلقائياً عمليات "بيع تجزئة" في جدول
+ *        invoice_operations لكل منتج تم بيعه، لتظهر في جدول حالة المخزون.
  */
 async function saveEveningSettlement() {
   if (!activeMorningRecord) {
@@ -495,6 +472,9 @@ async function saveEveningSettlement() {
   const assist = Number(document.getElementById('calc-assistance').value) || 0;
   const finalAmount = (totalSales + collected) - (newCredit + fuel + other + assist);
 
+  // منع التكرار: إذا كان هذا السجل مُقفلاً بالفعل من قبل، لا نعيد إدراج العمليات مرة أخرى
+  const alreadyClosed = activeMorningRecord.status === 'closed';
+
   showLoader(true);
   try {
     const { error } = await db
@@ -513,6 +493,35 @@ async function saveEveningSettlement() {
       .eq('id', activeMorningRecord.id);
 
     if (error) throw error;
+
+    // === الإضافة الجديدة: تسجيل مبيعات التجزئة في invoice_operations ===
+    // ليقرأها stock.js تحت عمود "مباعة تجزئة (-)" بنفس منطق باقي العمليات.
+    // الأعمدة هنا مطابقة تماماً لما يستخدمه invoice_ops.js عند submitCompleteInvoice:
+    // customer_name, invoice_number, operation_type, product_name, price, quantity, operation_date
+    if (!alreadyClosed) {
+      // رقم وصل اصطناعي وفريد لكل تصفية يومية، يجمع كل أسطرها معاً لتتبعها لاحقاً
+      const retailInvoiceNumber = `TJZ-${activeMorningRecord.dist_date}-${activeMorningRecord.id}`;
+
+      const opsToInsert = updatedItems
+        .filter(item => item.sold_qty > 0)
+        .map(item => ({
+          customer_name: activeMorningRecord.distributor_name,
+          invoice_number: retailInvoiceNumber,
+          operation_type: 'بيع تجزئة',
+          product_name: item.product_name,
+          price: item.retail_price,
+          quantity: item.sold_qty,
+          operation_date: activeMorningRecord.dist_date
+        }));
+
+      if (opsToInsert.length > 0) {
+        const { error: opsError } = await db
+          .from('invoice_operations')
+          .insert(opsToInsert);
+
+        if (opsError) throw opsError;
+      }
+    }
 
     showAlert("تم إقفال الحساب وتحديث مبيعات التجزئة بنجاح!");
     switchRetailTab('report');
