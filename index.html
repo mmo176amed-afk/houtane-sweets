@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Houtane Sweets - حلويات هتان</title>
   
+  <!-- أيقونة الشعار في لسان المتصفح -->
+  <link rel="icon" type="image/png" href="logo.png">
+  
   <!-- مكتبة الأيقونات FontAwesome وتنسيقات CSS الخارجية -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
@@ -56,12 +59,13 @@
   <!-- ======================================================================= -->
   <!-- [2] لوحة التحكم الرئيسية (Dashboard View) -->
   <!-- ======================================================================= -->
-  <div id="view-dashboard" class="view-section">
+ <div id="view-dashboard" class="view-section">
     <!-- الشريط العلوي لمعلومات المستخدم وتسجيل الخروج -->
     <div class="header-bar">
-      <div>
-        <h2 style="color: var(--primary); font-size: 22px;">
-          <i class="fa-solid fa-store" style="color: var(--accent);"></i> Houtane Sweets - حلويات هتان
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <img src="logo.png" alt="Logo" style="height: 45px; width: auto; object-fit: contain;">
+        <h2 style="color: var(--primary); font-size: 22px; margin: 0;">
+          Houtane Sweets - حلويات هتان
         </h2>
       </div>
       <div>
@@ -71,7 +75,6 @@
         </button>
       </div>
     </div>
-
     <!-- شبكة أزرار الوصول السريع للأقسام (8 أزرار: 4 في السطر الأول و 4 في السطر الثاني) -->
     <div class="btn-grid">
       <!-- 1. زر إضافة وتعديل المنتجات -->
