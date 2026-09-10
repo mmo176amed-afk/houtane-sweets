@@ -1,30 +1,51 @@
 /**
  * =========================================================================
- * وحدة توزيع التجزئة وجرد الموزعين وحساب الصافي (js/retail.js)
+ * وحدة إدارة وتوزيع التجزئة وجرد الموزعين اليومي (Houtane Sweets)
+ * الملف: js/retail.js
+ * =========================================================================
+ * الوظائف الرئيسية:
+ * 1. تسجيل خروج السلع صباحاً مع خاصية التوليد التلقائي للأسطر.
+ * 2. جرد الباقي مساءً وحساب الكميات المباعة وقيمتها لحظياً.
+ * 3. التصفية المالية الفورية (مبيعات + تحصيل - كريدي - بنزين - مصاريف - مساعدات).
+ * 4. توليد تقرير جدول التجزئة الشامل المطابق لحسابات الإكسل وحالة المخزن.
  * =========================================================================
  */
 
+// متغيرات عامة لحفظ قائمة المنتجات وبيانات السجل المفتوح
 let allProductsList = [];
 let activeMorningRecord = null;
 
+/**
+ * 1. دالة فتح وتهيئة واجهة التجزئة والموزعين
+ */
 async function openRetailDistributionView() {
-  showView('view-retail-dist');
+  showView('view-retail-dist'); // إظهار قسم التجزئة وإخفاء الأقسام الأخرى
   showLoader(true);
 
   try {
+    // ضبط التاريخ الافتراضي لليوم
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('morning-date').value = today;
     document.getElementById('evening-date').value = today;
 
-    // 1. جلب المنتجات والأسعار والمخزون
-    const { data: prods, error: pErr } = await db.from('products').select('*').order('id', { ascending: true });
+    // جلب قائمة المنتجات مع أسعارها ورصيد المخزن الحالي من قاعدة البيانات
+    const { data: prods, error: pErr } = await db
+      .from('products')
+      .select('*')
+      .order('id', { ascending: true });
+      
     if (pErr) throw pErr;
     allProductsList = prods || [];
 
-    // 2. جلب قائمة الموزعين والزبائن
-    const { data: custs, error: cErr } = await db.from('customers').select('name').order('name');
+    // جلب قائمة الزبائن والموزعين
+    const { data: custs, error: cErr } = await db
+      .from('customers')
+      .select('name')
+      .order('name');
+      
     if (cErr) throw cErr;
 
+    // تعبئة القوائم المنسدلة للموزعين في واجهتي الصباح والمساء
     const fillSelect = (elId) => {
       const select = document.getElementById(elId);
       select.innerHTML = '<option value="">-- اختر الموزع --</option>';
@@ -36,8 +57,14 @@ async function openRetailDistributionView() {
     fillSelect('morning-distributor');
     fillSelect('evening-distributor');
 
-    renderMorningTable();
+    // تهيئة حاوية أسطر الصباح وإضافة أول سطر تلقائياً
+    const container = document.getElementById('morning-items-container');
+    container.innerHTML = '';
+    addMorningItemRow();
+
+    // فتح تبويب خروج السلعة (الصباح) افتراضياً
     switchRetailTab('morning');
+
   } catch (err) {
     showAlert("خطأ في تحميل بيانات التجزئة: " + err.message);
   } finally {
@@ -45,65 +72,154 @@ async function openRetailDistributionView() {
   }
 }
 
+/**
+ * 2. دالة التبديل بين التبويبات الثلاثة (الصباح / المساء / التقرير الشامل)
+ */
 function switchRetailTab(tab) {
+  // التحكم في ظهور واختفاء الأقسام
   document.getElementById('retail-sec-morning').style.display = tab === 'morning' ? 'block' : 'none';
   document.getElementById('retail-sec-evening').style.display = tab === 'evening' ? 'block' : 'none';
   document.getElementById('retail-sec-report').style.display = tab === 'report' ? 'block' : 'none';
 
+  // تنسيق ألوان الأزرار للتبويب النشط
   document.getElementById('btn-tab-morning').style.background = tab === 'morning' ? '#0284c7' : '#64748b';
   document.getElementById('btn-tab-evening').style.background = tab === 'evening' ? '#059669' : '#64748b';
   document.getElementById('btn-tab-report').style.background = tab === 'report' ? '#475569' : '#64748b';
 
-  if (tab === 'report') loadRetailReportTable();
+  // عند فتح تبويب التقرير يتم جلب وعرض البيانات المحدثة فوراً
+  if (tab === 'report') {
+    loadRetailReportTable();
+  }
 }
 
-function renderMorningTable() {
-  const tbody = document.getElementById('morning-items-tbody');
-  tbody.innerHTML = '';
+/**
+ * 3. دالة إنشاء سطر جديد لاختيار السلع الصباحية مع المراقبة التلقائية
+ */
+function addMorningItemRow(selectedProdId = "", qty = "") {
+  const container = document.getElementById('morning-items-container');
+  const rowId = 'm-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 
-  allProductsList.forEach((p, idx) => {
-    tbody.innerHTML += `
-      <tr>
-        <td>${idx + 1}</td>
-        <td style="font-weight: bold; text-align: right; padding-right: 15px;">${p.name}</td>
-        <td style="color: #0284c7; font-weight: bold;">${p.stock_quantity || 0}</td>
-        <td style="font-weight: bold;">${p.retail_price || 0} دج</td>
-        <td>
-          <input type="number" id="m-qty-${p.id}" data-id="${p.id}" data-price="${p.retail_price || 0}" data-name="${p.name}" class="form-control" style="width: 110px; margin: 0 auto; text-align: center;" min="0" placeholder="0">
-        </td>
-      </tr>
-    `;
+  // بناء خيارات قائمة الحلوى
+  let optionsHtml = '<option value="">-- اختر الحلوى --</option>';
+  allProductsList.forEach(p => {
+    const isSelected = String(p.id) === String(selectedProdId) ? 'selected' : '';
+    optionsHtml += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
   });
+
+  // إنشاء عنصر السطر بتنسيق مطابق لوصل العمليات
+  const rowDiv = document.createElement('div');
+  rowDiv.id = rowId;
+  rowDiv.className = 'invoice-item-row';
+  rowDiv.style.display = 'grid';
+  rowDiv.style.gridTemplateColumns = '40px 2.5fr 100px 1.2fr 1.2fr';
+  rowDiv.style.gap = '10px';
+  rowDiv.style.alignItems = 'center';
+  rowDiv.style.marginBottom = '10px';
+
+  rowDiv.innerHTML = `
+    <!-- زر حذف السطر -->
+    <button type="button" class="btn-action" style="background: #e11d48; color: white; padding: 6px; height: 38px;" onclick="document.getElementById('${rowId}').remove()">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+    
+    <!-- القائمة المنسدلة لاختيار الحلوى -->
+    <select class="form-control m-prod-select" onchange="onMorningProductSelect(this, '${rowId}')">
+      ${optionsHtml}
+    </select>
+
+    <!-- شارة رصيد المخزن المتوفر -->
+    <span class="m-stock-badge" style="color: #dc2626; font-weight: bold; font-size: 13px; text-align: center;">مخزن: 0</span>
+
+    <!-- سعر التجزئة الافتراضي للقطعة -->
+    <input type="text" class="form-control m-price-input" readonly placeholder="السعر" style="text-align: center; background: #f8fafc;">
+
+    <!-- خانة كتابة الكمية المستلمة (تولد سطراً جديداً تلقائياً عند آخر سطر) -->
+    <input type="number" class="form-control m-qty-input" min="1" placeholder="الكمية" value="${qty}" style="text-align: center;" oninput="handleAutoRowAdd(this)">
+  `;
+
+  container.appendChild(rowDiv);
+
+  // تحديث بيانات السعر والمخزن فوراً في حال كان هناك منتج محدد مسبقاً
+  if (selectedProdId) {
+    const selectEl = rowDiv.querySelector('.m-prod-select');
+    onMorningProductSelect(selectEl, rowId);
+  }
 }
 
-// حفظ استلام الصباح
+/**
+ * 4. دالة تحديث السعر والمخزن عند اختيار المنتج في سطر الصباح
+ */
+function onMorningProductSelect(selectEl, rowId) {
+  const prodId = selectEl.value;
+  const row = document.getElementById(rowId);
+  const stockBadge = row.querySelector('.m-stock-badge');
+  const priceInput = row.querySelector('.m-price-input');
+
+  if (!prodId) {
+    stockBadge.innerText = 'مخزن: 0';
+    priceInput.value = '';
+    return;
+  }
+
+  const prod = allProductsList.find(p => String(p.id) === String(prodId));
+  if (prod) {
+    stockBadge.innerText = `مخزن: ${prod.stock_quantity || 0}`;
+    priceInput.value = prod.retail_price || 0;
+  }
+}
+
+/**
+ * 5. دالة فحص آخر سطر وتوليد سطر إضافي تلقائياً بمجرد إدخال رقم الكمية
+ */
+function handleAutoRowAdd(inputEl) {
+  const currentRow = inputEl.closest('.invoice-item-row');
+  const container = document.getElementById('morning-items-container');
+  const allRows = container.querySelectorAll('.invoice-item-row');
+
+  // التحقق: إذا كتب المستخدم قيمة وكان هذا السطر هو الأخير في المجموعة
+  if (inputEl.value.trim() !== "" && currentRow === allRows[allRows.length - 1]) {
+    addMorningItemRow();
+  }
+}
+
+/**
+ * 6. دالة حفظ وتثبيت خروج السلعة للصباح في قاعدة البيانات
+ */
 async function saveMorningDelivery() {
   const distName = document.getElementById('morning-distributor').value;
   const distDate = document.getElementById('morning-date').value;
 
   if (!distName || !distDate) {
-    showAlert("يرجى تحديد الموزع والتاريخ.");
+    showAlert("يرجى تحديد اسم الموزع والتاريخ أولاً.");
     return;
   }
 
+  const rows = document.querySelectorAll('#morning-items-container .invoice-item-row');
   const items = [];
-  allProductsList.forEach(p => {
-    const input = document.getElementById(`m-qty-${p.id}`);
-    const qty = Number(input?.value) || 0;
-    if (qty > 0) {
-      items.push({
-        product_id: p.id,
-        product_name: p.name,
-        out_qty: qty,
-        return_qty: 0,
-        sold_qty: 0,
-        retail_price: Number(p.retail_price) || 0
-      });
+
+  rows.forEach(row => {
+    const prodSelect = row.querySelector('.m-prod-select');
+    const qtyInput = row.querySelector('.m-qty-input');
+    const prodId = prodSelect ? prodSelect.value : null;
+    const qty = Number(qtyInput ? qtyInput.value : 0);
+
+    if (prodId && qty > 0) {
+      const prod = allProductsList.find(p => String(p.id) === String(prodId));
+      if (prod) {
+        items.push({
+          product_id: prod.id,
+          product_name: prod.name,
+          out_qty: qty,        // الكمية المسلمة صباحاً
+          return_qty: 0,       // الباقي المرجع (افتراضياً 0)
+          sold_qty: 0,         // المباع الفعلي
+          retail_price: Number(prod.retail_price) || 0
+        });
+      }
     }
   });
 
   if (items.length === 0) {
-    showAlert("يرجى كتابة كمية واحدة على الأقل للسلع الخارجة.");
+    showAlert("يرجى اختيار منتج واحد على الأقل وتحديد الكمية الخارجة.");
     return;
   }
 
@@ -115,21 +231,27 @@ async function saveMorningDelivery() {
       items: items,
       status: 'morning'
     }]);
+
     if (error) throw error;
 
     showAlert("تم تثبيت خروج السلعة للصباح بنجاح!");
+    
+    // الانتقال المباشر لواجهة المساء وتعبئة بيانات نفس الموزع
     document.getElementById('evening-distributor').value = distName;
     document.getElementById('evening-date').value = distDate;
     switchRetailTab('evening');
     loadEveningDeliveryData();
+
   } catch (err) {
-    showAlert("فشل في الحفظ: " + err.message);
+    showAlert("فشل في حفظ البيانات: " + err.message);
   } finally {
     showLoader(false);
   }
 }
 
-// جلب بيانات الصباح للمساء
+/**
+ * 7. دالة جلب بيانات استلام الصباح لعرضها في جرد المساء
+ */
 async function loadEveningDeliveryData() {
   const distName = document.getElementById('evening-distributor').value;
   const distDate = document.getElementById('evening-date').value;
@@ -152,7 +274,7 @@ async function loadEveningDeliveryData() {
     tbody.innerHTML = '';
 
     if (!data || data.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="padding: 15px; color: #e11d48;">لم يتم تسجيل خروج سلع لهذا الموزع في هذا اليوم.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="padding: 15px; color: #e11d48; font-weight: bold;">لم يتم تسجيل خروج سلع لهذا الموزع في هذا اليوم.</td></tr>`;
       activeMorningRecord = null;
       calculateEveningFinal();
       return;
@@ -161,6 +283,7 @@ async function loadEveningDeliveryData() {
     activeMorningRecord = data[0];
     const items = activeMorningRecord.items || [];
 
+    // تعبئة جدول المقارنة وحساب المباع
     items.forEach(item => {
       tbody.innerHTML += `
         <tr>
@@ -176,13 +299,16 @@ async function loadEveningDeliveryData() {
       `;
     });
 
+    // استرجاع مبالغ المصاريف والكريدي المسجلة مسبقاً إن وجدت
     document.getElementById('calc-collected-credit').value = activeMorningRecord.collected_credit || 0;
     document.getElementById('calc-new-credit').value = activeMorningRecord.new_credit || 0;
     document.getElementById('calc-fuel').value = activeMorningRecord.fuel_expense || 0;
     document.getElementById('calc-other-exp').value = activeMorningRecord.other_expenses || 0;
     document.getElementById('calc-assistance').value = activeMorningRecord.assistance || 0;
 
+    // حساب المجاميع المالية فوراً
     calculateEveningFinal();
+
   } catch (err) {
     showAlert("خطأ في جلب بيانات المساء: " + err.message);
   } finally {
@@ -190,9 +316,14 @@ async function loadEveningDeliveryData() {
   }
 }
 
+/**
+ * 8. دالة احتساب المباع وقيمته لكل سطر عند إدخال الباقي (المرتجع)
+ */
 function calcRowSold(prodId, outQty, price) {
   const retInput = document.getElementById(`e-ret-${prodId}`);
   let retQty = Number(retInput?.value) || 0;
+
+  // التحقق من الحدود المنطقية للمرتجع
   if (retQty > outQty) { retQty = outQty; retInput.value = outQty; }
   if (retQty < 0) { retQty = 0; retInput.value = 0; }
 
@@ -207,7 +338,9 @@ function calcRowSold(prodId, outQty, price) {
   calculateEveningFinal();
 }
 
-// حساب المجموع الصافي فورياً
+/**
+ * 9. دالة حساب التصفية المالية الشاملة والصافي الواجب تسليمه لحظياً
+ */
 function calculateEveningFinal() {
   if (!activeMorningRecord) {
     document.getElementById('calc-sales-total').value = 0;
@@ -215,6 +348,7 @@ function calculateEveningFinal() {
     return;
   }
 
+  // جمع إجمالي قيمة السلع المباعة
   let totalSales = 0;
   (activeMorningRecord.items || []).forEach(item => {
     const retInput = document.getElementById(`e-ret-${item.product_id}`);
@@ -223,22 +357,26 @@ function calculateEveningFinal() {
     totalSales += sold * item.retail_price;
   });
 
+  // قراءة بنود المصاريف والكريدي
   const collected = Number(document.getElementById('calc-collected-credit').value) || 0;
   const newCredit = Number(document.getElementById('calc-new-credit').value) || 0;
   const fuel = Number(document.getElementById('calc-fuel').value) || 0;
   const other = Number(document.getElementById('calc-other-exp').value) || 0;
   const assist = Number(document.getElementById('calc-assistance').value) || 0;
 
+  // المعادلة الرياضية الشاملة: (المبيعات + تحصيل الكريدي) - (كريدي اليوم + بنزين + مصاريف + مساعدات)
   const finalAmount = (totalSales + collected) - (newCredit + fuel + other + assist);
 
   document.getElementById('calc-sales-total').value = totalSales;
   document.getElementById('calc-final-amount').innerText = `${finalAmount.toLocaleString('fr-FR')} دج`;
 }
 
-// حفظ وإقفال الحساب اليومي
+/**
+ * 10. دالة حفظ وتأكيد إقفال الحساب اليومي للموزع
+ */
 async function saveEveningSettlement() {
   if (!activeMorningRecord) {
-    showAlert("لا يوجد سجل صباحي محدد.");
+    showAlert("لا يوجد سجل صباحي محدد للإقفال.");
     return;
   }
 
@@ -274,22 +412,25 @@ async function saveEveningSettlement() {
         other_expenses: other,
         assistance: assist,
         final_amount: finalAmount,
-        status: 'closed'
+        status: 'closed' // تغيير الحالة إلى مقفل ومباع
       })
       .eq('id', activeMorningRecord.id);
 
     if (error) throw error;
 
-    showAlert("تم إقفال الحساب وحفظ مبيعات التجزئة وتحديث الأرصدة بنجاح!");
+    showAlert("تم إقفال الحساب وتحديث مبيعات التجزئة بنجاح!");
     switchRetailTab('report');
+
   } catch (err) {
-    showAlert("خطأ في الحفظ: " + err.message);
+    showAlert("خطأ أثناء حفظ الإقفال: " + err.message);
   } finally {
     showLoader(false);
   }
 }
 
-// عرض جدول تقرير التجزئة المطابق للإكسل
+/**
+ * 11. دالة توليد وعرض جدول سجل التجزئة المجمع المطابق لجدول الإكسل
+ */
 async function loadRetailReportTable() {
   showLoader(true);
   try {
@@ -304,9 +445,10 @@ async function loadRetailReportTable() {
     const tbody = document.getElementById('retail-report-tbody');
     const tfoot = document.getElementById('retail-report-tfoot');
 
+    // إنشاء أعمدة المنتجات ديناميكياً بنفس ترتيب النظام
     let prodHeaders = '';
     allProductsList.forEach(p => {
-      prodHeaders += `<th style="background: #0284c7; color: white; min-width: 80px; font-size: 13px;">${p.name}</th>`;
+      prodHeaders += `<th style="background: #0284c7; color: white; min-width: 85px; font-size: 13px;">${p.name}</th>`;
     });
 
     thead.innerHTML = `
@@ -324,9 +466,11 @@ async function loadRetailReportTable() {
     const colTotals = {};
     allProductsList.forEach(p => colTotals[p.name] = 0);
 
+    // بناء صفوف التقرير
     (records || []).forEach((r, idx) => {
       const pMap = {};
       (r.items || []).forEach(it => {
+        // إذا كان مقفلاً يأخذ المباع الفعلي، وإذا كان صباحاً يأخذ الخارج
         pMap[it.product_name] = r.status === 'closed' ? it.sold_qty : it.out_qty;
       });
 
@@ -342,13 +486,18 @@ async function loadRetailReportTable() {
           <td>${idx + 1}</td>
           <td>${r.dist_date}</td>
           <td style="font-weight: bold; text-align: right; padding-right: 10px;">${r.distributor_name}</td>
-          <td><span style="padding: 3px 8px; border-radius: 10px; font-size: 12px; color: white; background: ${r.status === 'closed' ? '#059669' : '#eab308'};">${r.status === 'closed' ? 'مغلق ومباع' : 'خروج صباح'}</span></td>
+          <td>
+            <span style="padding: 3px 8px; border-radius: 10px; font-size: 12px; color: white; background: ${r.status === 'closed' ? '#059669' : '#eab308'};">
+              ${r.status === 'closed' ? 'مغلق ومباع' : 'خروج صباح'}
+            </span>
+          </td>
           ${prodCols}
           <td style="font-weight: bold; color: #059669;">${(r.final_amount || 0).toLocaleString('fr-FR')} دج</td>
         </tr>
       `;
     });
 
+    // بناء سطر المجاميع النهائي (الذي يغذي عمود مباعة تجزئة)
     let footCols = '';
     allProductsList.forEach(p => {
       footCols += `<td style="background: #1e293b; color: #38bdf8; font-weight: bold;">${colTotals[p.name]}</td>`;
@@ -356,13 +505,14 @@ async function loadRetailReportTable() {
 
     tfoot.innerHTML = `
       <tr style="border-top: 2px solid #0f172a;">
-        <td colspan="4" style="background: #0f172a; color: white; font-weight: bold;">مجموع مبيعات التجزئة (لحالة المخزن):</td>
+        <td colspan="4" style="background: #0f172a; color: white; font-weight: bold;">مجموع مبيعات التجزئة التراكمية:</td>
         ${footCols}
         <td style="background: #0f172a;"></td>
       </tr>
     `;
+
   } catch (err) {
-    showAlert("خطأ في جلب التقرير: " + err.message);
+    showAlert("خطأ في جلب تقرير التجزئة: " + err.message);
   } finally {
     showLoader(false);
   }
