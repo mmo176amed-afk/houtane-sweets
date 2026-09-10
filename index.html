@@ -59,7 +59,7 @@
   <!-- ======================================================================= -->
   <!-- [2] لوحة التحكم الرئيسية (Dashboard View) -->
   <!-- ======================================================================= -->
- <div id="view-dashboard" class="view-section">
+  <div id="view-dashboard" class="view-section">
     <!-- الشريط العلوي لمعلومات المستخدم وتسجيل الخروج -->
     <div class="header-bar">
       <div style="display: flex; align-items: center; gap: 12px;">
@@ -75,7 +75,8 @@
         </button>
       </div>
     </div>
-    <!-- شبكة أزرار الوصول السريع للأقسام (8 أزرار: 4 في السطر الأول و 4 في السطر الثاني) -->
+    
+    <!-- شبكة أزرار الوصول السريع للأقسام (8 أزرار متناسقة) -->
     <div class="btn-grid">
       <!-- 1. زر إضافة وتعديل المنتجات -->
       <button class="app-btn btn-p1" onclick="showView('view-add-product')">
@@ -96,7 +97,7 @@
       </button>
 
       <!-- 4. زر جرد الباقي وحساب المباع -->
-      <button class="app-btn btn-p4" onclick="openInventoryView()">
+      <button class="app-btn btn-p4" onclick="openRetailDistributionView()">
         <i class="fa-solid fa-calculator"></i>
         جرد الباقي وحساب المباع
       </button>
@@ -119,14 +120,14 @@
         عرض حالة المخزن الحالي
       </button>
 
-      <!-- 8. زر السلعة الخارجة (يأتي داخل الشبكة مباشرة تحت زر جرد الباقي) -->
+      <!-- 8. زر السلعة الخارجة (فواتير الجملة) -->
       <button class="app-btn" style="background: #27ae60; color: white;" onclick="loadOutgoingGoodsTable()">
         <i class="fa-solid fa-truck-moving"></i>
         السلعة الخارجة (فواتير الجملة)
       </button>
-    </div> <!-- إغلاق btn-grid -->
-  </div>   <!-- إغلاق view-dashboard -->
-  
+    </div>
+  </div>
+
   <!-- ======================================================================= -->
   <!-- [3] واجهة إضافة وتعديل المنتجات (Add/Edit Product View) -->
   <!-- ======================================================================= -->
@@ -247,7 +248,7 @@
         </div>
         <div>
           <label>الكريدي القديم (دج):</label>
-         <input type="text" id="inv-old-credit-val" class="form-control" dir="ltr" readonly style="background: #edf2f7; font-weight: bold; color: var(--danger); text-align: center;" value="0.00">
+          <input type="text" id="inv-old-credit-val" class="form-control" dir="ltr" readonly style="background: #edf2f7; font-weight: bold; color: var(--danger); text-align: center;" value="0.00">
         </div>
       </div>
 
@@ -337,58 +338,156 @@
   </div>
 
   <!-- ======================================================================= -->
-  <!-- [6] واجهة جرد الباقي وحساب المباع (Inventory & Sales View) -->
+  <!-- [6] واجهة توزيع التجزئة وجرد الموزعين اليومي (Retail Distribution View) -->
   <!-- ======================================================================= -->
-  <div id="view-inventory" class="view-section">
-    <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h3><i class="fa-solid fa-calculator" style="color: #8e44ad;"></i> جرد الباقي وحساب المباع والفاتورة</h3>
-        <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
-          <i class="fa-solid fa-arrow-right"></i> رجوع
+  <div id="view-retail-dist" class="view-section">
+    <div class="card" style="max-width: 98%; margin: 0 auto;">
+      
+      <!-- أزرار التبديل والرجوع -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; gap: 10px;">
+          <button id="btn-tab-morning" class="btn-action" style="background: #0284c7; color: white;" onclick="switchRetailTab('morning')">
+            <i class="fa-solid fa-box"></i> خروج السلعة (الصباح)
+          </button>
+          <button id="btn-tab-evening" class="btn-action" style="background: #64748b; color: white;" onclick="switchRetailTab('evening')">
+            <i class="fa-solid fa-calculator"></i> جرد الباقي والتصفية (المساء)
+          </button>
+          <button id="btn-tab-report" class="btn-action" style="background: #64748b; color: white;" onclick="switchRetailTab('report')">
+            <i class="fa-solid fa-table"></i> سجل وفواتير التجزئة
+          </button>
+        </div>
+        <button class="btn-action btn-secondary" onclick="showDashboard()">
+          <i class="fa-solid fa-arrow-right"></i> رجوع للرئيسية
         </button>
       </div>
 
-      <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 15px;">
-        <div class="form-group">
-          <label>التاريخ</label>
-          <input type="date" id="invt-date" class="form-control">
+      <!-- [أ] قسم خروج السلعة (صباحاً) -->
+      <div id="retail-sec-morning">
+        <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 200px;">
+              <label><strong>التاريخ:</strong></label>
+              <input type="date" id="morning-date" class="form-control">
+            </div>
+            <div class="form-group" style="flex: 2; min-width: 250px;">
+              <label><strong>اسم الموزع:</strong></label>
+              <select id="morning-distributor" class="form-control"></select>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label>اسم الزبون / الموزع</label>
-          <select id="invt-customer" class="form-control" onchange="loadCustomerDeliveredStock(this.value)">
-            <option value="">-- اختر الزبون --</option>
-          </select>
+
+        <h4 style="color: #0369a1; margin-bottom: 12px;">قائمة السلع المستلمة:</h4>
+        <div class="table-container">
+          <table style="width: 100%; text-align: center;">
+            <thead>
+              <tr style="background: #0284c7; color: white;">
+                <th style="width: 5%;">#</th>
+                <th style="width: 45%;">المنتج</th>
+                <th style="width: 15%;">المخزن المتوفر</th>
+                <th style="width: 15%;">سعر التجزئة</th>
+                <th style="width: 20%;">الكمية الخارجة</th>
+              </tr>
+            </thead>
+            <tbody id="morning-items-tbody"></tbody>
+          </table>
         </div>
-        <div class="form-group">
-          <label>إجمالي الفاتورة الحالية (دج)</label>
-          <input type="text" id="invt-total" class="form-control" readonly style="background: #eef2f7; font-size: 18px; font-weight: bold; color: var(--success);" value="0 دج">
+        <div style="text-align: left; margin-top: 15px;">
+          <button class="btn-action" style="background: #0284c7; color: white; padding: 10px 25px; font-size: 16px;" onclick="saveMorningDelivery()">
+            <i class="fa-solid fa-floppy-disk"></i> تثبيت خروج السلعة للصباح
+          </button>
         </div>
       </div>
 
-      <!-- جدول تفاصيل الجرد والحساب الآلي -->
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>المنتج</th>
-              <th>الكمية المسلمة</th>
-              <th>الباقي (المرتجع)</th>
-              <th>الكمية المباعة</th>
-              <th>السعر</th>
-              <th>المجموع</th>
-            </tr>
-          </thead>
-          <tbody id="inventory-tbody">
-            <tr><td colspan="6">اختر الزبون أولاً لتحميل السلع المسلمة له</td></tr>
-          </tbody>
-        </table>
+      <!-- [ب] قسم جرد المساء وحساب المباع والمصاريف -->
+      <div id="retail-sec-evening" style="display: none;">
+        <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end;">
+            <div class="form-group" style="flex: 1; min-width: 180px;">
+              <label><strong>التاريخ:</strong></label>
+              <input type="date" id="evening-date" class="form-control">
+            </div>
+            <div class="form-group" style="flex: 2; min-width: 220px;">
+              <label><strong>اسم الموزع:</strong></label>
+              <select id="evening-distributor" class="form-control" onchange="loadEveningDeliveryData()"></select>
+            </div>
+            <button class="btn-action" style="background: #059669; color: white; height: 42px;" onclick="loadEveningDeliveryData()">
+              <i class="fa-solid fa-magnifying-glass"></i> استرجاع بيانات الصباح
+            </button>
+          </div>
+        </div>
+
+        <!-- جدول مقارنة الكميات وحساب المباع -->
+        <div class="table-container">
+          <table style="width: 100%; text-align: center;">
+            <thead>
+              <tr style="background: #059669; color: white;">
+                <th>المنتج</th>
+                <th>الكمية المستلمة</th>
+                <th>الباقي (المرجع)</th>
+                <th>الكمية المباعة</th>
+                <th>سعر التجزئة</th>
+                <th>القيمة الإجمالية (دج)</th>
+              </tr>
+            </thead>
+            <tbody id="evening-items-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- لوحة الحسابات والتصفية المالية اللحظية -->
+        <div style="background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 8px; padding: 15px; margin-top: 20px;">
+          <h4 style="color: #1e293b; margin-bottom: 15px;">التصفية المالية للحساب اليومي:</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+            <div class="form-group">
+              <label>إجمالي المبيعات (دج):</label>
+              <input type="number" id="calc-sales-total" class="form-control" readonly style="background: #e2e8f0; font-weight: bold; color: #059669;">
+            </div>
+            <div class="form-group">
+              <label>تحصيل الكريدي (+):</label>
+              <input type="number" id="calc-collected-credit" class="form-control" value="0" oninput="calculateEveningFinal()">
+            </div>
+            <div class="form-group">
+              <label>كريدي اليوم الجديد (-):</label>
+              <input type="number" id="calc-new-credit" class="form-control" value="0" oninput="calculateEveningFinal()">
+            </div>
+            <div class="form-group">
+              <label>البنزين (-):</label>
+              <input type="number" id="calc-fuel" class="form-control" value="0" oninput="calculateEveningFinal()">
+            </div>
+            <div class="form-group">
+              <label>مصاريف أخرى (-):</label>
+              <input type="number" id="calc-other-exp" class="form-control" value="0" oninput="calculateEveningFinal()">
+            </div>
+            <div class="form-group">
+              <label>المساعدات (-):</label>
+              <input type="number" id="calc-assistance" class="form-control" value="0" oninput="calculateEveningFinal()">
+            </div>
+          </div>
+
+          <!-- خانة المجموع الصافي الكبير -->
+          <div style="background: #0f172a; color: white; padding: 15px; border-radius: 8px; margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 18px; font-weight: bold;">المجموع الصافي المستحق تسليمه:</span>
+            <span id="calc-final-amount" style="font-size: 24px; font-weight: bold; color: #4ade80;">0.00 دج</span>
+          </div>
+        </div>
+
+        <div style="text-align: left; margin-top: 15px;">
+          <button class="btn-action" style="background: #059669; color: white; padding: 10px 25px; font-size: 16px;" onclick="saveEveningSettlement()">
+            <i class="fa-solid fa-check-double"></i> حفظ وإقفال الحساب اليومي وتعديل المخزن
+          </button>
+        </div>
       </div>
 
-      <div style="text-align: left; margin-top: 20px;">
-        <button class="btn-action" style="background: #8e44ad;" onclick="submitInventoryAndSales()">
-          <i class="fa-solid fa-check-double"></i> تأكيد وحفظ الجرد والفاتورة
-        </button>
+      <!-- [ج] قسم سجل وفواتير التجزئة المجمعة -->
+      <div id="retail-sec-report" style="display: none;">
+        <div class="table-container" style="overflow-x: auto; max-height: 70vh;">
+          <table style="min-width: 1200px; text-align: center;">
+            <thead id="retail-report-thead"></thead>
+            <tbody id="retail-report-tbody"></tbody>
+            <tfoot id="retail-report-tfoot"></tfoot>
+          </table>
+        </div>
       </div>
+
     </div>
   </div>
 
@@ -450,7 +549,7 @@
     </div>
   </div>
   
- <!-- ======================================================================= -->
+  <!-- ======================================================================= -->
   <!-- [8] جدول عرض حالة المخزون الحالي (Stock Status View) -->
   <!-- ======================================================================= -->
   <div id="view-stock-table" class="view-section">
@@ -538,7 +637,6 @@
     </div>
   </div>
 
-</div>
   <!-- ======================================================================= -->
   <!-- [10] واجهة السلعة الخارجة - فواتير زبائن الجملة (Outgoing Goods View) -->
   <!-- ======================================================================= -->
@@ -574,17 +672,19 @@
     </div>
   </div>
 
-  <!-- استدعاء مكتبة Supabase الرسمية وملفات المعالجة البرمجية المقسمة -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/products.js"></script>
-  <script src="js/customers.js"></script>
-  <script src="js/invoice_ops.js"></script>
-  <script src="js/inventory.js"></script>
-  <script src="js/costs.js"></script>
-  <script src="js/stock.js"></script>
-  <script src="js/reports.js"></script>
-  <script src="js/outgoing.js"></script>
+</div> <!-- إغلاق container الصحيح لجميع الأقسام -->
+
+<!-- استدعاء مكتبة Supabase وملفات الجافاسكريبت -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/products.js"></script>
+<script src="js/customers.js"></script>
+<script src="js/invoice_ops.js"></script>
+<script src="js/retail.js"></script>
+<script src="js/costs.js"></script>
+<script src="js/stock.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/outgoing.js"></script>
 </body>
 </html>
