@@ -679,7 +679,7 @@ function addRetailCreditRow(custName = '', creditAmt = '', collectAmt = '', coll
     <tr id="${rowId}" style="background: #fff;">
       <td style="padding: 4px; border: 1px solid #fed7aa; font-weight: bold;">+</td>
       <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="text" class="form-control rc-cust-name" list="retail-customers-list" 
+        <input type="text" class="form-control rc-cust-name" list="retail-customers-list-main" 
           placeholder="اكتب اسم زبون التجزئة..." value="${custName}" 
           style="font-size: 12px; padding: 4px;"
           oninput="onRetailCustomerInput(this)">
