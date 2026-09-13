@@ -781,6 +781,17 @@ function calculateRetailCreditTotals() {
     });
   }
 
+  // ⬇️⬇️⬇️ نقل القيم تلقائياً إلى التصفية المالية ⬇️⬇️⬇️
+  const newCreditInput = document.getElementById('calc-new-credit');
+  const collectedCreditInput = document.getElementById('calc-collected-credit');
+
+  if (newCreditInput) {
+    newCreditInput.value = totalCredit === 0 ? '' : totalCredit;
+  }
+  if (collectedCreditInput) {
+    collectedCreditInput.value = totalCollection === 0 ? '' : totalCollection;
+  }
+
   // إعادة حساب التصفية المالية
   if (typeof calculateEveningFinal === 'function') {
     calculateEveningFinal();
