@@ -172,37 +172,58 @@
     </div>
   </div>
 
-  <!-- ======================================================================= -->
-  <!-- [4] واجهة إضافة الزبائن والموزعين (Add Customer View) -->
+   <!-- ======================================================================= -->
+  <!-- [4] واجهة إدارة الزبائن والموزعين (Add Customer View) -->
   <!-- ======================================================================= -->
   <div id="view-add-customer" class="view-section">
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h3><i class="fa-solid fa-user-plus" style="color: var(--success);"></i> إضافة زبون / موزع جديد</h3>
+        <h3><i class="fa-solid fa-user-plus" style="color: var(--success);"></i> إدارة الزبائن والموزعين</h3>
         <button class="btn-action btn-secondary" onclick="showView('view-dashboard')">
           <i class="fa-solid fa-arrow-right"></i> رجوع
         </button>
       </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label>اسم الزبون أو الموزع</label>
-          <input type="text" id="c-name" class="form-control" placeholder="أدخل اسم الزبون">
+      <!-- نموذج إضافة زبون جديد -->
+      <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #0369a1; margin-bottom: 12px;"><i class="fa-solid fa-plus-circle"></i> إضافة زبون / موزع جديد</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label>اسم الزبون أو الموزع</label>
+            <input type="text" id="c-name" class="form-control" placeholder="أدخل اسم الزبون">
+          </div>
+          <div class="form-group">
+            <label>الكريدي القديم (دج)</label>
+            <input type="number" id="c-credit" class="form-control" placeholder="0">
+          </div>
         </div>
-        <div class="form-group">
-          <label>الكريدي القديم (دج)</label>
-          <input type="number" id="c-credit" class="form-control" placeholder="0">
+        <div style="text-align: left; margin-top: 10px;">
+          <button class="btn-action" style="background: var(--success);" onclick="submitCustomer()">
+            <i class="fa-solid fa-save"></i> تسجيل الزبون
+          </button>
         </div>
       </div>
 
-      <div style="text-align: left; margin-top: 15px;">
-        <button class="btn-action" style="background: var(--success);" onclick="submitCustomer()">
-          <i class="fa-solid fa-save"></i> تسجيل الزبون
-        </button>
+      <!-- جدول قائمة الزبائن -->
+      <h4 style="color: #2c3e50; margin-bottom: 12px;"><i class="fa-solid fa-list"></i> قائمة الزبائن والموزعين</h4>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>الرقم</th>
+              <th>اسم ولقب الزبون</th>
+              <th>الكريدي الحالي (دج)</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="customers-tbody">
+            <!-- سيتم توليد الصفوف ديناميكياً -->
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
-
+  
   <!-- ======================================================================= -->
   <!-- [5] واجهة وصل جديد والعمليات على المنتجات -->
   <!-- ======================================================================= -->
