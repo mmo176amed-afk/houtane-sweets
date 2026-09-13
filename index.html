@@ -188,12 +188,23 @@
       <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
         <h4 style="color: #0369a1; margin-bottom: 12px;"><i class="fa-solid fa-plus-circle"></i> إضافة زبون / موزع جديد</h4>
         
-        <!-- الصف الأول: الاسم + الكريدي -->
+                <!-- الصف الأول: الاسم + النوع -->
         <div class="form-row">
           <div class="form-group">
             <label>اسم الزبون أو الموزع</label>
             <input type="text" id="c-name" class="form-control" placeholder="أدخل اسم الزبون">
           </div>
+          <div class="form-group">
+            <label>النوع</label>
+            <select id="c-type" class="form-control" style="font-weight: bold;">
+              <option value="gros">زبون جملة</option>
+              <option value="distributor">موزع تجزئة</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- الصف الثاني: الكريدي القديم -->
+        <div class="form-row">
           <div class="form-group">
             <label>الكريدي القديم (دج)</label>
             <input type="number" id="c-credit" class="form-control" placeholder="0">
