@@ -9,11 +9,20 @@ async function loadStockTable() {
   showLoader(true);
 
   try {
-    // 1. استرجاع تاريخ التوقيف المحفوظ في الأعلى
-    const savedDate = localStorage.getItem('houtane_stock_stop_date') || new Date().toISOString().split('T')[0];
+       // 1. استرجاع تاريخ التوقيف المحفوظ في الأعلى
     const dateInput = document.getElementById('stock-stop-date');
-    if (dateInput) dateInput.value = savedDate;
-
+    if (dateInput) {
+      const savedDate = localStorage.getItem('houtane_stock_stop_date');
+      if (savedDate) {
+        // إذا كان هناك تاريخ محفوظ، استخدمه
+        dateInput.value = savedDate;
+      } else {
+        // إذا لم يكن هناك تاريخ محفوظ، استخدم تاريخ اليوم (لأول مرة فقط)
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+        localStorage.setItem('houtane_stock_stop_date', today);
+      }
+    }
     // 2. جلب المنتجات وجميع العمليات
     const { data: prods, error: prodErr } = await db
       .from('products')
