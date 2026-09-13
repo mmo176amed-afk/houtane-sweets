@@ -104,11 +104,23 @@ async function loadCustomersTable() {
         ? '<span style="color: #27ae60; font-size: 11px;" title="معلومات مكتملة">✅</span>' 
         : '<span style="color: #e67e22; font-size: 11px;" title="معلومات ناقصة">⚠️</span>';
 
+            // ترجمة النوع
+      const typeLabels = {
+        'gros': 'زبون جملة',
+        'distributor': 'موزع تجزئة',
+        'detail': 'زبون تجزئة'
+      };
+      const typeLabel = typeLabels[c.type] || 'غير محدد';
+      const typeColor = c.type === 'gros' ? '#2980b9' : (c.type === 'distributor' ? '#8e44ad' : '#e67e22');
+
       tbody.innerHTML += `
         <tr>
           <td style="font-weight: bold;">${idx + 1}</td>
           <td style="font-weight: bold; text-align: right; padding-right: 15px;">
             ${c.name} ${infoIndicator}
+          </td>
+          <td style="font-weight: bold; color: ${typeColor}; font-size: 12px;">
+            ${typeLabel}
           </td>
           <td style="font-weight: bold; color: ${creditColor}; font-size: 15px;" dir="ltr">
             ${credit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} دج
@@ -126,7 +138,6 @@ async function loadCustomersTable() {
         </tr>
       `;
     });
-
   } catch (err) {
     showAlert("حدث خطأ أثناء تحميل قائمة الزبائن: " + err.message);
   } finally {
