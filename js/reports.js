@@ -108,8 +108,8 @@ async function printOrderReceipt(invoiceNum, customerName) {
             <td style="border: 1px solid #000; padding: 4px; text-align: center;">${idx + 1}</td>
             <td style="border: 1px solid #000; padding: 4px; text-align: right; padding-right: 8px;">${it.product_name}</td>
             <td style="border: 1px solid #000; padding: 4px; text-align: center;">${it.quantity}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${Number(it.price).toLocaleString('fr-FR')}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${lineTotal.toLocaleString('fr-FR')}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${Number(it.price).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${lineTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
         `;
       });
@@ -117,21 +117,7 @@ async function printOrderReceipt(invoiceNum, customerName) {
       itemsRowsHtml = `<tr><td colspan="5" style="border: 1px solid #000; padding: 8px; text-align: center;">لا توجد منتجات</td></tr>`;
     }
 
-    // إضافة سطور فارغة إذا كان عدد المنتجات أقل من 8 (لجعل الوصل يبدو أنيقاً)
-    const emptyRows = Math.max(0, 8 - (items ? items.length : 0));
-    for (let i = 0; i < emptyRows; i++) {
-      itemsRowsHtml += `
-        <tr>
-          <td style="border: 1px solid #000; padding: 4px; text-align: center;">&nbsp;</td>
-          <td style="border: 1px solid #000; padding: 4px;">&nbsp;</td>
-          <td style="border: 1px solid #000; padding: 4px;">&nbsp;</td>
-          <td style="border: 1px solid #000; padding: 4px;">&nbsp;</td>
-          <td style="border: 1px solid #000; padding: 4px;">&nbsp;</td>
-        </tr>
-      `;
-    }
-
-    // تصميم الوصل HTML
+       // تصميم الوصل HTML
     const receiptHtml = `
       <div class="receipt">
         <!-- الترويسة -->
@@ -182,7 +168,7 @@ async function printOrderReceipt(invoiceNum, customerName) {
             <tr>
               <td colspan="4" style="border: 1px solid #000; padding: 6px; text-align: left; font-weight: bold; background: #f0f0f0;">Total</td>
               <td style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold; background: #f0f0f0;">
-                ${totalGoods.toLocaleString('fr-FR')}
+                ${totalGoods.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
             </tr>
           </tfoot>
@@ -194,25 +180,25 @@ async function printOrderReceipt(invoiceNum, customerName) {
             <tr>
               <td style="border: 1px solid #000; padding: 5px; text-align: right; width: 60%;">مبلغ الوصل</td>
               <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">
-                ${Number(invData.invoice_amount || 0).toLocaleString('fr-FR')}
+                ${Number(invData.invoice_amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
             </tr>
             <tr>
               <td style="border: 1px solid #000; padding: 5px; text-align: right;">كريدي قديم</td>
               <td style="border: 1px solid #000; padding: 5px; text-align: center;">
-               ${oldCredit.toLocaleString('fr-FR')}
+               ${oldCredit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
             </tr>
             <tr>
               <td style="border: 1px solid #000; padding: 5px; text-align: right;">المبلغ المدفوع</td>
               <td style="border: 1px solid #000; padding: 5px; text-align: center; color: green; font-weight: bold;">
-                ${Number(invData.paid_amount || 0).toLocaleString('fr-FR')}
+                ${Number(invData.paid_amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
             </tr>
             <tr>
               <td style="border: 1px solid #000; padding: 5px; text-align: right; font-weight: bold;">الباقي</td>
               <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; color: #c0392b;">
-                ${Number(invData.debt || 0).toLocaleString('fr-FR')}
+                ${Number(invData.debt || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
             </tr>
           </table>
@@ -233,9 +219,9 @@ async function printOrderReceipt(invoiceNum, customerName) {
         <meta charset="UTF-8">
         <title>وصل تسليم - ${invoiceNum}</title>
         <style>
-          @page {
-            size: A4;
-            margin: 5mm;
+                    @page {
+            size: A4 landscape;
+            margin: 3mm;
           }
           * {
             box-sizing: border-box;
@@ -244,17 +230,22 @@ async function printOrderReceipt(invoiceNum, customerName) {
           body {
             margin: 0;
             padding: 0;
-            background: #f0f0f0;
+            background: white;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
           }
           .receipt {
-            width: 210mm;
-            height: 148.5mm;
+            width: 49%;
+            height: 200mm;
             background: white;
-            padding: 8mm;
+            padding: 4mm;
             display: flex;
             flex-direction: column;
+            border: 1px dashed #999;
+            page-break-inside: avoid;
           }
-          .receipt-header {
+             .receipt-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -309,16 +300,13 @@ async function printOrderReceipt(invoiceNum, customerName) {
             border-top: 1px dashed #999;
             padding-top: 5px;
           }
-          @media print {
+                    @media print {
             body {
               background: white;
             }
             .receipt {
-              page-break-after: always;
+              border: none;
               box-shadow: none;
-            }
-            .receipt:last-child {
-              page-break-after: auto;
             }
           }
         </style>
