@@ -683,8 +683,7 @@ function addRetailCreditRow(custName = '', creditAmt = '', collectAmt = '', coll
           placeholder="اكتب اسم زبون التجزئة..." value="${custName}" 
           style="font-size: 12px; padding: 4px;"
           oninput="onRetailCustomerInput(this)">
-        <datalist id="retail-customers-list"></datalist>
-      </td>
+        </td>
       <td style="padding: 4px; border: 1px solid #fed7aa;">
         <input type="number" step="any" class="form-control rc-credit-amt" 
           placeholder="0" value="${creditAmt}" 
@@ -809,6 +808,9 @@ function onRetailCustomerInput(inputEl) {
 /**
  * دالة تعبئة قائمة زبائن التجزئة في الـ datalist
  */
+/**
+ * دالة تعبئة قائمة زبائن التجزئة في الـ datalist
+ */
 async function fillRetailCustomersDatalist() {
   try {
     const { data: custs, error } = await db
@@ -819,15 +821,14 @@ async function fillRetailCustomersDatalist() {
 
     if (error) throw error;
 
-    // هناك عدة datalist في الصفحة (كل سطر له واحد)
-    const allDatalists = document.querySelectorAll('#retail-customers-list');
-    allDatalists.forEach(datalist => {
-      datalist.innerHTML = '';
-      (custs || []).forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.name;
-        datalist.appendChild(opt);
-      });
+    const datalist = document.getElementById('retail-customers-list-main');
+    if (!datalist) return;
+
+    datalist.innerHTML = '';
+    (custs || []).forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.name;
+      datalist.appendChild(opt);
     });
 
   } catch (err) {
