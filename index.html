@@ -390,9 +390,11 @@
               <label><strong>التاريخ:</strong></label>
               <input type="date" id="morning-date" class="form-control">
             </div>
-            <div class="form-group" style="flex: 2; min-width: 250px;">
+               <div class="form-group" style="flex: 2; min-width: 250px;">
               <label><strong>اسم الموزع:</strong></label>
-              <select id="morning-distributor" class="form-control"></select>
+              <input type="text" id="morning-distributor" class="form-control" list="distributors-list-morning" 
+                placeholder="اكتب أول أحرف من اسم الموزع...">
+              <datalist id="distributors-list-morning"></datalist>
             </div>
           </div>
         </div>
@@ -422,9 +424,12 @@
               <label><strong>التاريخ:</strong></label>
               <input type="date" id="evening-date" class="form-control">
             </div>
-            <div class="form-group" style="flex: 2; min-width: 220px;">
+               <div class="form-group" style="flex: 2; min-width: 220px;">
               <label><strong>اسم الموزع:</strong></label>
-              <select id="evening-distributor" class="form-control" onchange="loadEveningDeliveryData()"></select>
+              <input type="text" id="evening-distributor" class="form-control" list="distributors-list" 
+                placeholder="اكتب أول أحرف من اسم الموزع..." 
+                onchange="loadEveningDeliveryData()">
+              <datalist id="distributors-list"></datalist>
             </div>
             <button class="btn-action" style="background: #059669; color: white; height: 42px;" onclick="loadEveningDeliveryData()">
               <i class="fa-solid fa-magnifying-glass"></i> استرجاع بيانات الصباح
