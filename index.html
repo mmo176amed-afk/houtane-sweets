@@ -700,24 +700,24 @@
         </div>
       </div>
 
-      <!-- جدول المخزن المنظم (12 عموداً متطابقاً بدقة) -->
+      <!-- جدول المخزن المنظم (13 عموداً متطابقاً بدقة) -->
       <div class="table-container" style="overflow-x: auto;">
-        <table style="min-width: 1200px; text-align: center;">
-          <thead>
+        <table id="stock-table" style="min-width: 900px; text-align: center; font-size: 12px;">
+           <thead>
             <tr>
-              <th>الرقم</th>
-              <th>اسم المنتج</th>
-              <th style="background: #2c3e50; color: white;">حالة المخزن</th>
-              <th>سعر الجملة</th>
-              <th>سعر التجزئة</th>
-              <th style="color: #27ae60;">المنتجة (+)</th>
-              <th style="color: #e67e22;">مباعة جملة (-)</th>
-              <th style="color: #c0392b;">هدايا+تالفة (-)</th>
-              <th style="color: #2980b9;">مسترجعة (+)</th>
-              <th style="color: #8e44ad;">مباعة تجزئة (-)</th>
-              <th style="background: #16a085; color: white;">الحقيقي بالمخزن</th>
-              <th>فارق التقييم</th>
-              <th style="background: #2980b9; color: white;">القيمة الإجمالية</th>
+              <th style="width: 40px;">الرقم</th>
+              <th style="min-width: 120px; text-align: right; padding-right: 8px;">اسم المنتج</th>
+              <th style="width: 60px; background: #2c3e50; color: white;">المخزن</th>
+              <th style="width: 70px;">سعر الجملة</th>
+              <th style="width: 70px;">سعر التجزئة</th>
+              <th style="width: 50px; color: #27ae60;">منتجة (+)</th>
+              <th style="width: 55px; color: #e67e22;">جملة (-)</th>
+              <th style="width: 55px; color: #c0392b;">هدايا (-)</th>
+              <th style="width: 55px; color: #2980b9;">مرتجع (+)</th>
+              <th style="width: 55px; color: #8e44ad;">تجزئة (-)</th>
+              <th style="width: 60px; background: #16a085; color: white;">الحقيقي</th>
+              <th style="width: 60px;">فارق التقييم</th>
+              <th style="width: 90px; background: #2980b9; color: white;">القيمة الإجمالية</th>
             </tr>
           </thead>
           <tbody id="stock-tbody"></tbody>
