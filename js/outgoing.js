@@ -70,7 +70,7 @@ async function loadOutgoingGoodsTable() {
     tbody.innerHTML = '';
     invs.forEach((inv, idx) => {
       // استخراج سلع هذا الوصل
-      const invoiceOps = (ops || []).filter(o => o.invoice_number === inv.invoice_number);
+      const invoiceOps = (ops || []).filter(o => o.receipt_number === inv.invoice_number);
       const rowProdMap = {};
       invoiceOps.forEach(o => {
         rowProdMap[o.product_name] = (rowProdMap[o.product_name] || 0) + (Number(o.quantity) || 0);
