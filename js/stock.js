@@ -128,9 +128,14 @@ async function loadStockTable() {
             <strong style="color: ${realColor}; font-size: 16px;">${p.currentStock}</strong>
           </td>
 
-          <!-- 12. فارق التقييم -->
+                  <!-- 12. فارق التقييم -->
           <td style="font-weight: bold; color: ${evalDiff >= 0 ? '#27ae60' : '#c0392b'};">
             ${evalDiff.toLocaleString()} دج
+          </td>
+
+        <!-- 13. القيمة الإجمالية للمخزون (بناءً على سعر الجملة) -->
+          <td style="font-weight: bold; color: #2980b9; background: #eaf2f8;">
+            ${(p.currentStock * p.wholesalePrice).toLocaleString()} دج
           </td>
         </tr>
       `;
