@@ -331,73 +331,334 @@ async function printOrderReceipt(invoiceNum, customerName) {
     showLoader(false);
   }
 }
-
 /**
- * 3. دالة طباعة فاتورة الطريق (Bon de Route / Facture)
+ * 3. دالة طباعة فاتورة الطريق (Facture - تصميم احترافي)
  */
 async function printRoadInvoice(invoiceNum, customerName) {
   showLoader(true);
   try {
-    const { data: invData, error } = await db
+    // 1. جلب تفاصيل الفاتورة
+    const { data: invData, error: invErr } = await db
       .from('invoices')
       .select('*')
       .eq('invoice_number', invoiceNum)
       .single();
 
-    if (error) throw error;
+    if (invErr) throw invErr;
 
-    const printWindow = window.open('', '', 'width=800,height=600');
-    printWindow.document.write(`
-      <html dir="rtl" lang="ar">
-      <head>
-        <title>فاتورة الطريق - ${invoiceNum}</title>
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; }
-          .header { text-align: center; border-bottom: 2px solid #8e44ad; padding-bottom: 10px; margin-bottom: 20px; }
-          .info-box { margin-bottom: 15px; font-size: 15px; line-height: 1.8; }
-          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-          th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
-          th { background: #8e44ad; color: white; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h2>Houtane Sweets - فاتورة الطريق والنقل</h2>
-          <h4>رقم الوصل: ${invData.invoice_number} | التاريخ: ${invData.invoice_date || '-'}</h4>
+    // 2. جلب تفاصيل المنتجات
+    const { data: items, error: itemsErr } = await db
+      .from('invoice_operations')
+      .select('*')
+      .eq('receipt_number', invoiceNum);
+
+    if (itemsErr) throw itemsErr;
+
+    // 3. جلب معلومات الزبون
+    const { data: custData, error: custErr } = await db
+      .from('customers')
+      .select('*')
+      .eq('name', invData.customer_name)
+      .maybeSingle();
+
+    if (custErr) console.warn("تحذير: لم يتم جلب بيانات الزبون:", custErr);
+
+    // 4. الحسابات المالية
+    let totalGoods = 0;
+    let itemsRowsHtml = '';
+
+    if (items && items.length > 0) {
+      items.forEach((it, idx) => {
+        const lineTotal = Number(it.price) * Number(it.quantity);
+        totalGoods += lineTotal;
+        itemsRowsHtml += `
+          <tr>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${idx + 1}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: right; padding-right: 8px;">${it.product_name}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${it.quantity}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${Number(it.price).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${lineTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          </tr>
+        `;
+      });
+    } else {
+      itemsRowsHtml = `<tr><td colspan="5" style="border: 1px solid #000; padding: 8px; text-align: center;">لا توجد منتجات</td></tr>`;
+    }
+
+    // الحسابات
+    const totalHT = totalGoods;
+    const tvaRate = 0.19;
+    const totalTVA = totalHT * tvaRate;
+    const totalTTC = totalHT + totalTVA;
+    const timbreFiscal = totalTTC * 0.01; // 1% من TTC
+    const netAPayer = totalTTC + timbreFiscal;
+
+    // تحويل المبلغ إلى حروف (مبسط - فقط للأرقام الصحيحة)
+    const netAPayerInt = Math.floor(netAPayer);
+    const netAPayerCents = Math.round((netAPayer - netAPayerInt) * 100);
+    const amountInWords = convertToArabicWords(netAPayerInt) + ` و ${netAPayerCents} سنتيم`;
+
+    // معلومات الزبون
+    const custRC = custData ? (custData.rc || '-') : '-';
+    const custNIF = custData ? (custData.nif || '-') : '-';
+    const custAddress = custData ? (custData.address || '-') : '-';
+
+    // 5. تصميم الفاتورة
+    const invoiceHtml = `
+      <div class="invoice">
+        
+        <!-- ================= الترويسة ================= -->
+        <div class="invoice-header">
+          <div class="header-left">
+            <img src="${COMPANY_INFO.logoUrl}" alt="Logo" style="height: 70px;">
+          </div>
+          <div class="header-center">
+            <h2 style="margin: 0; font-size: 14px; font-weight: bold;">${COMPANY_INFO.name}</h2>
+            <div style="font-size: 11px; margin-top: 5px; line-height: 1.6;">
+              <div><strong>RC:</strong> ${COMPANY_INFO.rc}</div>
+              <div><strong>NIF:</strong> ${COMPANY_INFO.nif}</div>
+              <div><strong>NIS:</strong> ${COMPANY_INFO.nis}</div>
+              <div><strong>N° art:</strong> ${COMPANY_INFO.art}</div>
+              <div><strong>adress:</strong> ${COMPANY_INFO.address}</div>
+            </div>
+          </div>
         </div>
-        <div class="info-box">
-          <p><strong>الموزع / الزبون:</strong> ${invData.customer_name}</p>
-          <p><strong>ملاحظات التوزيع:</strong> ${invData.notes || 'لا توجد'}</p>
+
+        <!-- ================= معلومات الزبون ================= -->
+        <div class="client-info">
+          <div style="border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 4px;">
+            <strong>Client:</strong> ${invData.customer_name}
+          </div>
+          <div><strong>adress:</strong> ${custAddress}</div>
+          <div style="display: flex; justify-content: space-between;">
+            <div><strong>NIF:</strong> ${custNIF}</div>
+            <div style="font-weight: bold; font-size: 12px;">${invData.invoice_date || '-'}</div>
+          </div>
+          <div><strong>RC:</strong> ${custRC}</div>
         </div>
-        <table>
+
+        <!-- ================= جدول المنتجات ================= -->
+        <table class="invoice-table">
           <thead>
             <tr>
-              <th>المبلغ الإجمالي المطلوب</th>
-              <th>المبلغ المدفوع</th>
-              <th>الرصيد المتبقي (دين)</th>
+              <th style="width: 6%;">N</th>
+              <th style="width: 44%;">produit</th>
+              <th style="width: 12%;">QNTE</th>
+              <th style="width: 18%;">P U</th>
+              <th style="width: 20%;">MONTANT</th>
             </tr>
           </thead>
           <tbody>
+            ${itemsRowsHtml}
             <tr>
-              <td style="font-weight:bold;">${Number(invData.invoice_amount || 0).toLocaleString()} دج</td>
-              <td style="color:green; font-weight:bold;">${Number(invData.paid_amount || 0).toLocaleString()} دج</td>
-              <td style="color:red; font-weight:bold;">${Number(invData.debt || 0).toLocaleString()} دج</td>
+              <td colspan="4" style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold; font-size: 13px;">TOTALE</td>
+              <td style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold; font-size: 13px;">
+                ${totalHT.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </td>
             </tr>
           </tbody>
         </table>
+
+        <!-- ================= المجاميع ================= -->
+        <div class="invoice-totals">
+          <div style="display: flex; justify-content: space-between; gap: 15px;">
+            
+            <!-- العمود الأيسر: المجاميع -->
+            <div style="flex: 1; font-size: 11px; line-height: 1.8;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #ddd; padding: 3px 0;">
+                <span>Total HT:</span>
+                <strong>${totalHT.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #ddd; padding: 3px 0;">
+                <span>Total TVA:</span>
+                <strong>${totalTVA.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #ddd; padding: 3px 0;">
+                <span>Total TTC:</span>
+                <strong>${totalTTC.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #ddd; padding: 3px 0;">
+                <span>Timbre fiscal:</span>
+                <strong>${timbreFiscal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-top: 2px solid #000; padding: 4px 0; font-weight: bold; font-size: 12px;">
+                <span>Net à payer :</span>
+                <strong>${netAPayer.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </div>
+            </div>
+
+            <!-- العمود الأيمن: جدول TVA -->
+            <div style="flex: 1;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <thead>
+                  <tr>
+                    <th style="border: 1px solid #000; padding: 4px; background: #f0f0f0;">Taux</th>
+                    <th style="border: 1px solid #000; padding: 4px; background: #f0f0f0;">Montant HT</th>
+                    <th style="border: 1px solid #000; padding: 4px; background: #f0f0f0;">Montant TVA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">19%</td>
+                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${totalHT.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${totalTVA.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= طرق الدفع والمبلغ بالحروف ================= -->
+        <div class="invoice-footer">
+          <div style="font-size: 11px; margin-bottom: 4px;">
+            <strong>mode de règlement :</strong> à terme
+          </div>
+          <div style="font-size: 11px; border-top: 1px solid #000; padding-top: 4px;">
+            <strong>Arrêter la somme de la présente facture:</strong><br>
+            ${amountInWords}
+          </div>
+          <div style="text-align: left; margin-top: 15px; font-size: 11px;">
+            <strong>Cachet et signature</strong>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    // 6. فتح نافذة الطباعة
+    const printWindow = window.open('', '', 'width=900,height=700');
+    printWindow.document.write(`
+      <html dir="ltr" lang="fr">
+      <head>
+        <meta charset="UTF-8">
+        <title>Facture - ${invoiceNum}</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 8mm;
+          }
+          * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+            background: white;
+            color: #000;
+          }
+          .invoice {
+            width: 100%;
+            padding: 5mm;
+            font-size: 12px;
+          }
+          .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px solid #000;
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+          }
+          .header-center {
+            flex: 1;
+            text-align: center;
+          }
+          .client-info {
+            font-size: 11px;
+            line-height: 1.5;
+            margin-bottom: 8px;
+            padding: 4px;
+            border: 1px solid #000;
+          }
+          .invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-bottom: 6px;
+          }
+          .invoice-table th {
+            background: #f0f0f0;
+            color: #000;
+            border: 1px solid #000;
+            padding: 4px;
+            font-size: 11px;
+          }
+          .invoice-totals {
+            margin-top: 6px;
+          }
+          .invoice-footer {
+            margin-top: 10px;
+            padding-top: 6px;
+            border-top: 1px solid #000;
+          }
+          @media print {
+            body { background: white; }
+          }
+        </style>
+      </head>
+      <body>
+        ${invoiceHtml}
       </body>
       </html>
     `);
 
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => { printWindow.print(); }, 500);
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
 
   } catch (err) {
     showAlert("حدث خطأ أثناء إعداد فاتورة الطريق: " + err.message);
+    console.error(err);
   } finally {
     showLoader(false);
   }
+}
+
+/**
+ * دالة مساعدة: تحويل الأرقام إلى حروف عربية
+ */
+function convertToArabicWords(num) {
+  if (num === 0) return "صفر";
+  
+  const ones = ["", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة",
+                "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر",
+                "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر"];
+  const tens = ["", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"];
+  const hundreds = ["", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة"];
+
+  function convertChunk(n) {
+    let result = "";
+    if (n >= 100) {
+      result += hundreds[Math.floor(n / 100)] + " ";
+      n %= 100;
+    }
+    if (n >= 20) {
+      result += tens[Math.floor(n / 10)];
+      if (n % 10 > 0) result += " و" + ones[n % 10];
+      result += " ";
+    } else if (n > 0) {
+      result += ones[n] + " ";
+    }
+    return result;
+  }
+
+  let result = "";
+  
+  const milliards = Math.floor(num / 1000000000);
+  const millions = Math.floor((num % 1000000000) / 1000000);
+  const milliers = Math.floor((num % 1000000) / 1000);
+  const reste = num % 1000;
+
+  if (milliards > 0) result += convertChunk(milliards) + "مليار ";
+  if (millions > 0) result += convertChunk(millions) + "مليون ";
+  if (milliers > 0) result += convertChunk(milliers) + "ألف ";
+  if (reste > 0) result += convertChunk(reste);
+
+  return result.trim() + " دينار جزائري";
 }
 
 /**
