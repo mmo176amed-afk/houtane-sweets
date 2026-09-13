@@ -11,6 +11,7 @@ let currentEditCustomerId = null;
  */
 async function submitCustomer() {
   const name = document.getElementById('c-name').value.trim();
+  const type = document.getElementById('c-type').value;
   const credit = Number(document.getElementById('c-credit').value) || 0;
   const rc = document.getElementById('c-rc').value.trim();
   const nif = document.getElementById('c-nif').value.trim();
@@ -34,6 +35,7 @@ async function submitCustomer() {
   try {
     const { error } = await db.from('customers').insert([{
       name: name,
+      type: type,
       old_credit: credit,
       last_invoice_seq: 0,
       rc: rc || null,
@@ -50,6 +52,7 @@ async function submitCustomer() {
     
     // تفريغ الحقول
     document.getElementById('c-name').value = '';
+    document.getElementById('c-type').value = 'gros';
     document.getElementById('c-credit').value = '';
     document.getElementById('c-rc').value = '';
     document.getElementById('c-nif').value = '';
