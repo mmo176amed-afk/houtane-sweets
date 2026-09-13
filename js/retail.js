@@ -87,16 +87,20 @@ async function openRetailDistributionView() {
       
     if (cErr) throw cErr;
 
-    const fillSelect = (elId) => {
-      const select = document.getElementById(elId);
-      select.innerHTML = '<option value="">-- اختر الموزع --</option>';
+        // تعبئة قوائم الموزعين (datalist للبحث السريع)
+    const fillDatalist = (elId) => {
+      const datalist = document.getElementById(elId);
+      if (!datalist) return;
+      datalist.innerHTML = '';
       (custs || []).forEach(c => {
-        select.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        datalist.appendChild(opt);
       });
     };
 
-    fillSelect('morning-distributor');
-    fillSelect('evening-distributor');
+    fillDatalist('distributors-list-morning');
+    fillDatalist('distributors-list');
 
     const container = document.getElementById('morning-items-container');
     container.innerHTML = '';
