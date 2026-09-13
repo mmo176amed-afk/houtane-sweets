@@ -380,7 +380,7 @@ async function loadEveningDeliveryData() {
       `;
     });
 
-        // تعبئة الحقول: فارغة إذا كانت القيمة 0
+       // تعبئة الحقول: فارغة إذا كانت القيمة 0
     const setFieldValue = (id, val) => {
       const el = document.getElementById(id);
       if (el) el.value = (Number(val) === 0) ? '' : val;
@@ -391,6 +391,38 @@ async function loadEveningDeliveryData() {
     setFieldValue('calc-other-exp', activeMorningRecord.other_expenses);
     setFieldValue('calc-assistance', activeMorningRecord.assistance);
 
+    // ⬇️⬇️⬇️ جلب كريدي زبائن التجزئة ⬇️⬇️⬇️
+    const tbodyCredit = document.getElementById('retail-credit-tbody');
+    if (tbodyCredit) {
+      tbodyCredit.innerHTML = '';
+      
+      // البحث عن الكريدي المحفوظ لهذا الموزع في هذا التاريخ
+      const { data: existingCredits, error: credErr } = await db
+        .from('retail_credits')
+        .select('*')
+        .eq('distributor_name', distName)
+        .eq('credit_date', distDate);
+
+      if (credErr) console.warn("تحذير: لم يتم جلب الكريدي:", credErr.message);
+
+      if (existingCredits && existingCredits.length > 0) {
+        // عرض الكريدي المحفوظ
+        existingCredits.forEach(c => {
+          addRetailCreditRow(
+            c.customer_name || '',
+            c.credit_amount || '',
+            c.collection_amount || '',
+            c.collection_date || '',
+            c.notes || ''
+          );
+        });
+      } else {
+        // إضافة سطر واحد فارغ
+        addRetailCreditRow();
+      }
+    }
+
+    calculateRetailCreditTotals();
     calculateEveningFinal();
 
   } catch (err) {
@@ -625,5 +657,169 @@ async function loadRetailReportTable() {
     showAlert("خطأ في جلب تقرير التجزئة: " + err.message);
   } finally {
     showLoader(false);
+  }
+}
+
+/**
+ * =========================================================================
+ * [قسم جديد] كريدي زبائن التجزئة
+ * =========================================================================
+ */
+
+/**
+ * دالة إضافة سطر جديد لكريدي زبائن التجزئة
+ */
+function addRetailCreditRow(custName = '', creditAmt = '', collectAmt = '', collectDate = '', notes = '') {
+  const tbody = document.getElementById('retail-credit-tbody');
+  if (!tbody) return;
+
+  const rowId = 'rc-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  
+  const rowHtml = `
+    <tr id="${rowId}" style="background: #fff;">
+      <td style="padding: 4px; border: 1px solid #fed7aa; font-weight: bold;">+</td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="text" class="form-control rc-cust-name" list="retail-customers-list" 
+          placeholder="اكتب اسم زبون التجزئة..." value="${custName}" 
+          style="font-size: 12px; padding: 4px;"
+          oninput="onRetailCustomerInput(this)">
+        <datalist id="retail-customers-list"></datalist>
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="number" step="any" class="form-control rc-credit-amt" 
+          placeholder="0" value="${creditAmt}" 
+          style="font-size: 12px; padding: 4px; text-align: center;"
+          oninput="calculateRetailCreditTotals()">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="number" step="any" class="form-control rc-collect-amt" 
+          placeholder="0" value="${collectAmt}" 
+          style="font-size: 12px; padding: 4px; text-align: center;"
+          oninput="calculateRetailCreditTotals()">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="date" class="form-control rc-collect-date" 
+          value="${collectDate}" 
+          style="font-size: 12px; padding: 4px;">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="text" class="form-control rc-notes" 
+          placeholder="ملاحظات" value="${notes}" 
+          style="font-size: 12px; padding: 4px;">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa; text-align: center;">
+        <button type="button" class="btn-action" 
+          style="background: #e74c3c; padding: 4px 8px; font-size: 11px;" 
+          onclick="removeRetailCreditRow('${rowId}')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </td>
+    </tr>
+  `;
+
+  tbody.insertAdjacentHTML('beforeend', rowHtml);
+
+  // تحديث أرقام الأسطر
+  updateRetailCreditRowNumbers();
+
+  // جلب قائمة زبائن التجزئة
+  fillRetailCustomersDatalist();
+}
+
+/**
+ * دالة حذف سطر من كريدي زبائن التجزئة
+ */
+function removeRetailCreditRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (row) {
+    row.remove();
+    updateRetailCreditRowNumbers();
+    calculateRetailCreditTotals();
+  }
+}
+
+/**
+ * دالة تحديث أرقام الأسطر
+ */
+function updateRetailCreditRowNumbers() {
+  const rows = document.querySelectorAll('#retail-credit-tbody tr');
+  rows.forEach((row, idx) => {
+    const firstCell = row.querySelector('td:first-child');
+    if (firstCell) firstCell.textContent = idx + 1;
+  });
+}
+
+/**
+ * دالة حساب مجاميع الكريدي والتحصيل
+ */
+function calculateRetailCreditTotals() {
+  let totalCredit = 0;
+  let totalCollection = 0;
+
+  const rows = document.querySelectorAll('#retail-credit-tbody tr');
+  rows.forEach(row => {
+    const creditInput = row.querySelector('.rc-credit-amt');
+    const collectInput = row.querySelector('.rc-collect-amt');
+    
+    if (creditInput) totalCredit += Number(creditInput.value) || 0;
+    if (collectInput) totalCollection += Number(collectInput.value) || 0;
+  });
+
+  const totalCreditEl = document.getElementById('retail-credit-total');
+  const totalCollectionEl = document.getElementById('retail-collection-total');
+
+  if (totalCreditEl) {
+    totalCreditEl.textContent = totalCredit.toLocaleString('fr-FR', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    });
+  }
+  if (totalCollectionEl) {
+    totalCollectionEl.textContent = totalCollection.toLocaleString('fr-FR', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    });
+  }
+
+  // إعادة حساب التصفية المالية
+  if (typeof calculateEveningFinal === 'function') {
+    calculateEveningFinal();
+  }
+}
+
+/**
+ * دالة عند إدخال اسم زبون التجزئة
+ */
+function onRetailCustomerInput(inputEl) {
+  // نستخدم هذه الدالة للتحقق أو الإضافة التلقائية لاحقاً
+  // حالياً، لا نفعل شيئاً
+}
+
+/**
+ * دالة تعبئة قائمة زبائن التجزئة في الـ datalist
+ */
+async function fillRetailCustomersDatalist() {
+  try {
+    const { data: custs, error } = await db
+      .from('customers')
+      .select('name')
+      .eq('type', 'detail')
+      .order('name');
+
+    if (error) throw error;
+
+    // هناك عدة datalist في الصفحة (كل سطر له واحد)
+    const allDatalists = document.querySelectorAll('#retail-customers-list');
+    allDatalists.forEach(datalist => {
+      datalist.innerHTML = '';
+      (custs || []).forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        datalist.appendChild(opt);
+      });
+    });
+
+  } catch (err) {
+    console.warn("تحذير: لم يتم جلب زبائن التجزئة:", err.message);
   }
 }
