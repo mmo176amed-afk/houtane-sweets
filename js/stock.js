@@ -82,20 +82,26 @@ async function loadStockTable() {
       return;
     }
 
-    // 5. بناء الخلايا الـ 12 المتطابقة تماماً مع ترويسة الجدول
+       // 5. بناء الخلايا الـ 13 المتطابقة تماماً مع ترويسة الجدول
     productsCache.forEach((p, index) => {
       const evalDiff = p.retailPrice - p.wholesalePrice;
       const realColor = p.currentStock > 0 ? '#16a085' : (p.currentStock < 0 ? '#c0392b' : '#7f8c8d');
 
+      // تنبيه المخزون المنخفض (أقل من 20 قطعة)
+      const lowStockThreshold = 20;
+      const isLowStock = p.currentStock > 0 && p.currentStock <= lowStockThreshold;
+      const stockRowBg = p.currentStock <= 0 ? '#fde8e8' : (isLowStock ? '#fff3cd' : '');
+
       tbody.innerHTML += `
-        <tr>
+        <tr style="background: ${stockRowBg};">
+
           <!-- 1. الرقم -->
           <td style="font-weight: bold;">${index + 1}</td>
 
           <!-- 2. اسم المنتج -->
           <td style="font-weight: bold; text-align: right; padding-right: 10px;">${p.name}</td>
 
-          <!-- 3. حالة المخزن (تعديل وحفظ فوري) -->
+          <!-- 3. حالة المخزن -->
           <td style="background: #f8fafc;">
             <input type="number" value="${p.baseStock}" 
               style="width: 75px; text-align: center; font-weight: bold; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px;"
@@ -124,23 +130,24 @@ async function loadStockTable() {
           <td style="color: #8e44ad; font-weight: bold;">${p.retailSold}</td>
 
           <!-- 11. الحقيقي في المخزن -->
-          <td style="background: #e8f8f5;">
+          <td style="background: ${isLowStock ? '#ffe0b2' : '#e8f8f5'};">
             <strong style="color: ${realColor}; font-size: 16px;">${p.currentStock}</strong>
+            ${isLowStock ? '<br><small style="color: #d35400; font-size: 11px;">⚠️ منخفض</small>' : ''}
           </td>
 
-                  <!-- 12. فارق التقييم -->
+          <!-- 12. فارق التقييم -->
           <td style="font-weight: bold; color: ${evalDiff >= 0 ? '#27ae60' : '#c0392b'};">
             ${evalDiff.toLocaleString()} دج
           </td>
 
-        <!-- 13. القيمة الإجمالية للمخزون (بناءً على سعر الجملة) -->
+          <!-- 13. القيمة الإجمالية للمخزون -->
           <td style="font-weight: bold; color: #2980b9; background: #eaf2f8;">
             ${(p.currentStock * p.wholesalePrice).toLocaleString()} دج
           </td>
         </tr>
       `;
     });
-
+    
   } catch (err) {
     showAlert("حدث خطأ أثناء تحميل جدول المخزون: " + err.message);
   } finally {
