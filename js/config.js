@@ -24,6 +24,19 @@ const SECURITY_CONFIG = {
   adminPassword: "123",        // كلمة السر العامة
   yearClosePassword: "123"     // كلمة السر المخصصة للإغلاق السنوي وتصفية السجل
 };
+// 4. معلومات الشركة (تظهر في الفواتير)
+const COMPANY_INFO = {
+  name: "ENTREPRISE HOUTANE FABRICATION DISTRIBUTION DES GATEAUX",
+  nameAr: "حلويات هتان",
+  rc: "16/00-5041568A15",
+  nif: "18843300026619400000",
+  nis: "19884330002665",
+  art: "16269730045",
+  bank: "Gulf Bank",
+  bankAccount: "03200012319145120827",
+  address: "cité benzerqa 01, GP 319 section 04, bordj elkifan",
+  logoUrl: "https://mmo176amed-afk.github.io/houtane-sweets/logo.png"
+};
 
 // 4. دوال التحكم العامة في الواجهة
 function showLoader(show) {
