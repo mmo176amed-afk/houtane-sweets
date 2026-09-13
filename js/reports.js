@@ -68,74 +68,277 @@ async function loadInvoicesTable() {
 /**
  * 2. دالة طباعة وصل الطلب (Bon de Commande / Livraison)
  */
+/**
+ * 2. دالة طباعة وصل التسليم (تصميم احترافي - A5 على ورق A4)
+ */
 async function printOrderReceipt(invoiceNum, customerName) {
   showLoader(true);
   try {
-    const { data: items, error } = await db
+    // جلب تفاصيل الفاتورة
+    const { data: invData, error: invErr } = await db
+      .from('invoices')
+      .select('*')
+      .eq('invoice_number', invoiceNum)
+      .single();
+
+        if (invErr) throw invErr;
+
+    // جلب الكريدي القديم من customersCache
+    const customer = customersCache.find(c => c.name === invData.customer_name);
+    const oldCredit = customer ? (Number(customer.oldCredit) || 0) : 0;
+
+    // جلب تفاصيل المنتجات
+    const { data: items, error: itemsErr } = await db
       .from('invoice_operations')
       .select('*')
-      .eq('invoice_number', invoiceNum);
+      .eq('receipt_number', invoiceNum);
 
-    if (error) throw error;
+    if (itemsErr) throw itemsErr;
 
-    const printWindow = window.open('', '', 'width=800,height=600');
+    // حساب المجموع الكلي للمنتجات
+    let totalGoods = 0;
     let itemsRowsHtml = '';
-    
+
     if (items && items.length > 0) {
       items.forEach((it, idx) => {
+        const lineTotal = Number(it.price) * Number(it.quantity);
+        totalGoods += lineTotal;
         itemsRowsHtml += `
           <tr>
-            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${idx + 1}</td>
-            <td style="border:1px solid #ddd; padding:8px;">${it.product_name}</td>
-            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${it.quantity}</td>
-            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${Number(it.price).toLocaleString()} دج</td>
-            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${Number(it.quantity * it.price).toLocaleString()} دج</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${idx + 1}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: right; padding-right: 8px;">${it.product_name}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${it.quantity}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${Number(it.price).toLocaleString('fr-FR')}</td>
+            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${lineTotal.toLocaleString('fr-FR')}</td>
           </tr>
         `;
       });
+    } else {
+      itemsRowsHtml = `<tr><td colspan="5" style="border: 1px solid #000; padding: 8px; text-align: center;">لا توجد منتجات</td></tr>`;
     }
 
-    printWindow.document.write(`
-      <html dir="rtl" lang="ar">
-      <head>
-        <title>وصل طلب - ${invoiceNum}</title>
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; }
-          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-          th { background: #f2f2f2; border: 1px solid #ddd; padding: 8px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h2>Houtane Sweets - حلويات هتان</h2>
-          <h3>وصل تسليم وطلب رقم: ${invoiceNum}</h3>
-          <p><strong>اسم الزبون / الموزع:</strong> ${customerName}</p>
+    // إضافة سطور فارغة إذا كان عدد المنتجات أقل من 8 (لجعل الوصل يبدو أنيقاً)
+    const emptyRows = Math.max(0, 8 - (items ? items.length : 0));
+    for (let i = 0; i < emptyRows; i++) {
+      itemsRowsHtml += `
+        <tr>
+          <td style="border: 1px solid #000; padding: 4px; text-align: center;">&nbsp;</td>
+          <td style="border: 1px solid #000; padding: 4px;">&nbsp;</td>
+          <td style="border: 1px solid #000; padding: 4px;">&nbsp;</td>
+          <td style="border: 1px solid #000; padding: 4px;">&nbsp;</td>
+          <td style="border: 1px solid #000; padding: 4px;">&nbsp;</td>
+        </tr>
+      `;
+    }
+
+    // تصميم الوصل HTML
+    const receiptHtml = `
+      <div class="receipt">
+        <!-- الترويسة -->
+        <div class="receipt-header">
+          <div class="receipt-logo">
+            <img src="https://mmo176amed-afk.github.io/houtane-sweets/logo.png" alt="Houtane Sweets" style="height: 60px;">
+          </div>
+          <div class="receipt-title">
+            <h2 style="margin: 0; font-size: 20px;">حلويات هتان</h2>
+            <p style="margin: 2px 0; font-size: 12px;">HOUTANE SWEETS</p>
+          </div>
+          <div class="receipt-type">
+            <h3 style="margin: 0; font-size: 16px; color: #c0392b;">وصل تسليم</h3>
+          </div>
         </div>
-        <table>
+
+        <!-- معلومات الوصل -->
+        <div class="receipt-info">
+          <div class="info-row">
+            <span class="info-label">التاريخ:</span>
+            <span class="info-value">${invData.invoice_date || '-'}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">رقم الوصل:</span>
+            <span class="info-value" style="font-family: monospace; font-weight: bold;">${invData.invoice_number}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">اسم الزبون:</span>
+            <span class="info-value">${invData.customer_name}</span>
+          </div>
+        </div>
+
+        <!-- جدول المنتجات -->
+        <table class="receipt-table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>المنتج</th>
-              <th>الكمية</th>
-              <th>السعر الفردي</th>
-              <th>المجموع</th>
+              <th style="width: 8%;">الرقم</th>
+              <th style="width: 42%;">التعيين</th>
+              <th style="width: 12%;">الكمية</th>
+              <th style="width: 18%;">سعر الوحدة</th>
+              <th style="width: 20%;">السعر الإجمالي</th>
             </tr>
           </thead>
           <tbody>
-            ${itemsRowsHtml || '<tr><td colspan="5" style="text-align:center;">لا توجد تفاصيل سلع مسجلة لهذا الرقم</td></tr>'}
+            ${itemsRowsHtml}
           </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4" style="border: 1px solid #000; padding: 6px; text-align: left; font-weight: bold; background: #f0f0f0;">Total</td>
+              <td style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold; background: #f0f0f0;">
+                ${totalGoods.toLocaleString('fr-FR')}
+              </td>
+            </tr>
+          </tfoot>
         </table>
+
+        <!-- ملخص الدفع -->
+        <div class="receipt-summary">
+          <table style="width: 60%; margin-right: auto; margin-left: auto; border-collapse: collapse;">
+            <tr>
+              <td style="border: 1px solid #000; padding: 5px; text-align: right; width: 60%;">مبلغ الوصل</td>
+              <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">
+                ${Number(invData.invoice_amount || 0).toLocaleString('fr-FR')}
+              </td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #000; padding: 5px; text-align: right;">كريدي قديم</td>
+              <td style="border: 1px solid #000; padding: 5px; text-align: center;">
+               ${oldCredit.toLocaleString('fr-FR')}
+              </td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #000; padding: 5px; text-align: right;">المبلغ المدفوع</td>
+              <td style="border: 1px solid #000; padding: 5px; text-align: center; color: green; font-weight: bold;">
+                ${Number(invData.paid_amount || 0).toLocaleString('fr-FR')}
+              </td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #000; padding: 5px; text-align: right; font-weight: bold;">الباقي</td>
+              <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; color: #c0392b;">
+                ${Number(invData.debt || 0).toLocaleString('fr-FR')}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- التوقيع -->
+        <div class="receipt-footer">
+          <p style="text-align: center; font-size: 11px; margin-top: 10px;">شكراً لتعاملكم معنا</p>
+        </div>
+      </div>
+    `;
+
+    // فتح نافذة الطباعة
+    const printWindow = window.open('', '', 'width=900,height=700');
+    printWindow.document.write(`
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8">
+        <title>وصل تسليم - ${invoiceNum}</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 5mm;
+          }
+          * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+            background: #f0f0f0;
+          }
+          .receipt {
+            width: 210mm;
+            height: 148.5mm;
+            background: white;
+            padding: 8mm;
+            display: flex;
+            flex-direction: column;
+          }
+          .receipt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 6px;
+            margin-bottom: 8px;
+          }
+          .receipt-title h2 {
+            color: #c0392b;
+          }
+          .receipt-title p {
+            color: #666;
+            letter-spacing: 2px;
+          }
+          .receipt-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 15px;
+            margin-bottom: 8px;
+            font-size: 12px;
+          }
+          .info-row {
+            display: flex;
+            gap: 6px;
+          }
+          .info-label {
+            font-weight: bold;
+            color: #333;
+          }
+          .info-value {
+            color: #000;
+          }
+          .receipt-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-bottom: 8px;
+          }
+          .receipt-table th {
+            background: #000;
+            color: white;
+            border: 1px solid #000;
+            padding: 5px;
+            font-size: 12px;
+          }
+          .receipt-summary {
+            margin-top: 8px;
+            font-size: 12px;
+          }
+          .receipt-footer {
+            margin-top: auto;
+            border-top: 1px dashed #999;
+            padding-top: 5px;
+          }
+          @media print {
+            body {
+              background: white;
+            }
+            .receipt {
+              page-break-after: always;
+              box-shadow: none;
+            }
+            .receipt:last-child {
+              page-break-after: auto;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        ${receiptHtml}
+        ${receiptHtml}
       </body>
       </html>
     `);
 
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => { printWindow.print(); }, 500);
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
 
   } catch (err) {
-    showAlert("حدث خطأ أثناء إعداد وصل الطلب للطباعة: " + err.message);
+    showAlert("حدث خطأ أثناء إعداد وصل التسليم للطباعة: " + err.message);
+    console.error(err);
   } finally {
     showLoader(false);
   }
