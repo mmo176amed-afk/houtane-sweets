@@ -474,24 +474,8 @@ async function submitCompleteInvoice() {
         quantity: item.qty,
         operation_date: invoiceDate
       }]);
-
       if (opInsertErr) throw opInsertErr;
-
-      if (!isEditMode && item.prodId) {
-        const prod = productsCache.find(p => p.id === item.prodId);
-        if (prod) {
-          let currentStock = Number(prod.currentStock) || 0;
-          let updatedStock = currentInvoiceOperationType === 'وصل جديد (توزيع)' ? currentStock - item.qty : currentStock + item.qty;
-
-          const { error: stockUpdateErr } = await db
-            .from('products')
-            .update({ current_stock: updatedStock })
-            .eq('id', item.prodId);
-
-          if (stockUpdateErr) throw stockUpdateErr;
-        }
       }
-    }
 
     const { error: invErr } = await db.from('invoices').insert([{
       customer_name: customerName,
