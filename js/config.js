@@ -38,7 +38,7 @@ const COMPANY_INFO = {
   logoUrl: "https://mmo176amed-afk.github.io/houtane-sweets/logo.png"
 };
 
-// 4. دوال التحكم العامة في الواجهة
+// 5. دوال التحكم العامة في الواجهة
 function showLoader(show) {
   const loader = document.getElementById('loader');
   if (loader) loader.style.display = show ? 'flex' : 'none';
