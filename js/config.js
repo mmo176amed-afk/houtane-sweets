@@ -39,8 +39,12 @@ function showView(viewId) {
   if (viewId === 'view-add-product' && typeof populateProductDatalist === 'function') {
     populateProductDatalist();
   }
-}
 
+  // تحديث جدول الزبائن تلقائياً عند فتح الصفحة
+  if (viewId === 'view-add-customer' && typeof loadCustomersTable === 'function') {
+    loadCustomersTable();
+  }
+}
 function showDashboard() {
   showView('view-dashboard');
 }
