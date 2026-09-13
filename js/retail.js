@@ -376,11 +376,16 @@ async function loadEveningDeliveryData() {
       `;
     });
 
-    document.getElementById('calc-collected-credit').value = activeMorningRecord.collected_credit || 0;
-    document.getElementById('calc-new-credit').value = activeMorningRecord.new_credit || 0;
-    document.getElementById('calc-fuel').value = activeMorningRecord.fuel_expense || 0;
-    document.getElementById('calc-other-exp').value = activeMorningRecord.other_expenses || 0;
-    document.getElementById('calc-assistance').value = activeMorningRecord.assistance || 0;
+        // تعبئة الحقول: فارغة إذا كانت القيمة 0
+    const setFieldValue = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = (Number(val) === 0) ? '' : val;
+    };
+    setFieldValue('calc-collected-credit', activeMorningRecord.collected_credit);
+    setFieldValue('calc-new-credit', activeMorningRecord.new_credit);
+    setFieldValue('calc-fuel', activeMorningRecord.fuel_expense);
+    setFieldValue('calc-other-exp', activeMorningRecord.other_expenses);
+    setFieldValue('calc-assistance', activeMorningRecord.assistance);
 
     calculateEveningFinal();
 
