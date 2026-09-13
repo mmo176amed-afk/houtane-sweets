@@ -261,6 +261,79 @@
         </table>
       </div>
     </div>
+     <!-- ⬇️⬇️⬇️ النافذة المنبثقة لتعديل معلومات الزبون ⬇️⬇️⬇️ -->
+    <div id="customer-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+      <div style="background: white; border-radius: 12px; padding: 25px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px;">
+          <h3 style="color: #2c3e50; margin: 0;"><i class="fa-solid fa-user-edit"></i> تعديل معلومات الزبون</h3>
+          <button onclick="closeCustomerModal()" style="background: #e74c3c; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; font-size: 18px;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- اسم الزبون (غير قابل للتعديل) -->
+        <div class="form-group">
+          <label style="font-weight: bold;">اسم الزبون:</label>
+          <input type="text" id="modal-c-name" class="form-control" readonly style="background: #f0f0f0; font-weight: bold;">
+        </div>
+
+        <!-- RC + NIF -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>RC (السجل التجاري)</label>
+            <input type="text" id="modal-c-rc" class="form-control" placeholder="أدخل السجل التجاري">
+          </div>
+          <div class="form-group">
+            <label>NIF (الرقم الجبائي)</label>
+            <input type="text" id="modal-c-nif" class="form-control" placeholder="أدخل الرقم الجبائي">
+          </div>
+        </div>
+
+        <!-- NIS + اسم البنك -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>NIS (رقم التعريف الإحصائي)</label>
+            <input type="text" id="modal-c-nis" class="form-control" placeholder="أدخل رقم التعريف الإحصائي">
+          </div>
+          <div class="form-group">
+            <label>اسم البنك</label>
+            <input type="text" id="modal-c-bank-name" class="form-control" placeholder="أدخل اسم البنك">
+          </div>
+        </div>
+
+        <!-- رقم الحساب البنكي + العنوان -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>رقم الحساب البنكي</label>
+            <input type="text" id="modal-c-bank-account" class="form-control" placeholder="أدخل رقم الحساب البنكي">
+          </div>
+          <div class="form-group">
+            <label>العنوان</label>
+            <input type="text" id="modal-c-address" class="form-control" placeholder="أدخل العنوان">
+          </div>
+        </div>
+
+        <!-- الكريدي القديم -->
+        <div class="form-group">
+          <label>الكريدي الحالي (دج)</label>
+          <input type="number" id="modal-c-credit" class="form-control" placeholder="0">
+        </div>
+
+        <!-- أزرار الحفظ والإلغاء -->
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+          <button class="btn-action" style="background: #27ae60; flex: 2;" onclick="saveCustomerInfo()">
+            <i class="fa-solid fa-save"></i> حفظ التعديلات
+          </button>
+          <button class="btn-action btn-secondary" style="flex: 1;" onclick="closeCustomerModal()">
+            <i class="fa-solid fa-xmark"></i> إلغاء
+          </button>
+        </div>
+
+      </div>
+    </div>
+    <!-- ⬆️⬆️⬆️ نهاية النافذة المنبثقة ⬆️⬆️⬆️ -->
+
   </div>
   
   <!-- ======================================================================= -->
