@@ -184,9 +184,11 @@
         </button>
       </div>
 
-      <!-- نموذج إضافة زبون جديد -->
+            <!-- نموذج إضافة زبون جديد -->
       <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
         <h4 style="color: #0369a1; margin-bottom: 12px;"><i class="fa-solid fa-plus-circle"></i> إضافة زبون / موزع جديد</h4>
+        
+        <!-- الصف الأول: الاسم + الكريدي -->
         <div class="form-row">
           <div class="form-group">
             <label>اسم الزبون أو الموزع</label>
@@ -197,13 +199,50 @@
             <input type="number" id="c-credit" class="form-control" placeholder="0">
           </div>
         </div>
+
+        <!-- الصف الثاني: RC + NIF -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>RC (السجل التجاري)</label>
+            <input type="text" id="c-rc" class="form-control" placeholder="أدخل السجل التجاري">
+          </div>
+          <div class="form-group">
+            <label>NIF (الرقم الجبائي)</label>
+            <input type="text" id="c-nif" class="form-control" placeholder="أدخل الرقم الجبائي">
+          </div>
+        </div>
+
+        <!-- الصف الثالث: NIS + اسم البنك -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>NIS (رقم التعريف الإحصائي)</label>
+            <input type="text" id="c-nis" class="form-control" placeholder="أدخل رقم التعريف الإحصائي">
+          </div>
+          <div class="form-group">
+            <label>اسم البنك</label>
+            <input type="text" id="c-bank-name" class="form-control" placeholder="أدخل اسم البنك">
+          </div>
+        </div>
+
+        <!-- الصف الرابع: رقم الحساب البنكي + العنوان -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>رقم الحساب البنكي</label>
+            <input type="text" id="c-bank-account" class="form-control" placeholder="أدخل رقم الحساب البنكي">
+          </div>
+          <div class="form-group">
+            <label>العنوان</label>
+            <input type="text" id="c-address" class="form-control" placeholder="أدخل العنوان">
+          </div>
+        </div>
+
         <div style="text-align: left; margin-top: 10px;">
           <button class="btn-action" style="background: var(--success);" onclick="submitCustomer()">
             <i class="fa-solid fa-save"></i> تسجيل الزبون
           </button>
         </div>
       </div>
-
+      
       <!-- جدول قائمة الزبائن -->
       <h4 style="color: #2c3e50; margin-bottom: 12px;"><i class="fa-solid fa-list"></i> قائمة الزبائن والموزعين</h4>
       <div class="table-container">
