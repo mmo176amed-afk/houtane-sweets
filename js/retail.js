@@ -2,9 +2,6 @@
  * =========================================================================
  * وحدة إدارة وتوزيع التجزئة وجرد الموزعين اليومي (Houtane Sweets)
  * الملف: js/retail.js
- * -- تعديل: عند إقفال حساب المساء، تُسجَّل الكميات المباعة كعمليات
- *    "بيع تجزئة" في جدول invoice_operations، لتظهر تلقائياً في عمود
- *    "مباعة تجزئة (-)" داخل جدول حالة المخزون (stock.js).
  * =========================================================================
  */
 
@@ -39,68 +36,50 @@ async function openRetailDistributionView() {
     const opsSummary = {};
     (ops || []).forEach(op => {
       const pName = op.product_name;
-
       if (!opsSummary[pName]) {
-        opsSummary[pName] = {
-          produced: 0,
-          wholesaleSold: 0,
-          wasteAndGifts: 0,
-          returned: 0,
-          retailSold: 0
-        };
+        opsSummary[pName] = { produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0 };
       }
-
       const qty = Number(op.quantity) || 0;
-
-      if (op.operation_type === 'سلعة منتجة') {
-        opsSummary[pName].produced += qty;
-      } else if (op.operation_type === 'وصل جديد (توزيع)') {
-        opsSummary[pName].wholesaleSold += qty;
-      } else if (op.operation_type === 'تالفة' || op.operation_type === 'هدايا') {
-        opsSummary[pName].wasteAndGifts += qty;
-      } else if (op.operation_type === 'مسترجعة') {
-        opsSummary[pName].returned += qty;
-      } else if (op.operation_type === 'بيع تجزئة') {
-        opsSummary[pName].retailSold += qty;
-      }
+      if (op.operation_type === 'سلعة منتجة') opsSummary[pName].produced += qty;
+      else if (op.operation_type === 'وصل جديد (توزيع)') opsSummary[pName].wholesaleSold += qty;
+      else if (op.operation_type === 'تالفة' || op.operation_type === 'هدايا') opsSummary[pName].wasteAndGifts += qty;
+      else if (op.operation_type === 'مسترجعة') opsSummary[pName].returned += qty;
+      else if (op.operation_type === 'بيع تجزئة') opsSummary[pName].retailSold += qty;
     });
 
     allProductsList = (prods || []).map(p => {
-      const s = opsSummary[p.name] || {
-        produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0
-      };
-
+      const s = opsSummary[p.name] || { produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0 };
       const baseStock = Number(p.current_stock) || 0;
-      const realStock = (baseStock + s.produced + s.returned)
-                       - (s.wholesaleSold + s.wasteAndGifts + s.retailSold);
-
-      return {
-        ...p,
-        real_stock: realStock
-      };
+      const realStock = (baseStock + s.produced + s.returned) - (s.wholesaleSold + s.wasteAndGifts + s.retailSold);
+      return { ...p, real_stock: realStock };
     });
 
+    // جلب الموزعين (نوعهم distributor)
     const { data: custs, error: cErr } = await db
       .from('customers')
-      .select('name')
+      .select('name, type')
       .order('name');
-      
     if (cErr) throw cErr;
 
-        // تعبئة قوائم الموزعين (datalist للبحث السريع)
-    const fillDatalist = (elId) => {
+    const distributors = (custs || []).filter(c => c.type === 'distributor');
+    const fillDatalist = (elId, list) => {
       const datalist = document.getElementById(elId);
       if (!datalist) return;
       datalist.innerHTML = '';
-      (custs || []).forEach(c => {
+      list.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.name;
         datalist.appendChild(opt);
       });
     };
+    fillDatalist('distributors-list-morning', distributors);
+    fillDatalist('distributors-list', distributors);
 
-    fillDatalist('distributors-list-morning');
-    fillDatalist('distributors-list');
+    // جلب زبائن التجزئة لقائمة العمليات
+    await fillRetailCustomersDatalist();
+
+    // جلب عمليات التجزئة (كريدي/تحصيل)
+    await loadRetailOperations();
 
     const container = document.getElementById('morning-items-container');
     container.innerHTML = '';
@@ -116,7 +95,7 @@ async function openRetailDistributionView() {
 }
 
 /**
- * 2. دالة التبديل بين التبويبات (الصباح / المساء / التقرير)
+ * 2. دالة التبديل بين التبويبات
  */
 function switchRetailTab(tab) {
   document.getElementById('retail-sec-morning').style.display = tab === 'morning' ? 'block' : 'none';
@@ -127,21 +106,18 @@ function switchRetailTab(tab) {
   document.getElementById('btn-tab-evening').style.background = tab === 'evening' ? '#059669' : '#64748b';
   document.getElementById('btn-tab-report').style.background = tab === 'report' ? '#475569' : '#64748b';
 
-  if (tab === 'report') {
-    loadRetailReportTable();
-  }
+  if (tab === 'report') loadRetailReportTable();
 }
 
 /**
- * 3. دالة إضافة سطر جديد لخروج السلعة (تستثني المنتجات المختارة مسبقاً لمنع التكرار)
+ * 3. دوال خروج السلعة (الصباح) - المنتجات
  */
 function addMorningItemRow(selectedProdId = "", qty = "") {
   const container = document.getElementById('morning-items-container');
   const rowId = 'm-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 
   const selectedProductIds = Array.from(container.querySelectorAll('.m-prod-select'))
-    .map(sel => sel.value)
-    .filter(val => val !== "");
+    .map(sel => sel.value).filter(val => val !== "");
 
   let optionsHtml = '<option value="">-- اختر الحلوى --</option>';
   allProductsList.forEach(p => {
@@ -165,40 +141,26 @@ function addMorningItemRow(selectedProdId = "", qty = "") {
     <button type="button" class="btn-action" style="background: #e11d48; color: white; padding: 6px; height: 38px;" onclick="removeMorningRow('${rowId}')">
       <i class="fa-solid fa-xmark"></i>
     </button>
-    
     <select class="form-control m-prod-select" onchange="onMorningProductSelect(this, '${rowId}')">
       ${optionsHtml}
     </select>
-
     <span class="m-stock-badge" style="color: #dc2626; font-weight: bold; font-size: 13px; text-align: center;">مخزن: 0</span>
-
     <input type="text" class="form-control m-price-input" readonly placeholder="السعر" style="text-align: center; background: #f8fafc; font-weight: bold;">
-
     <input type="number" class="form-control m-qty-input" min="1" placeholder="الكمية" value="${qty}" style="text-align: center;" oninput="handleAutoRowAdd(this)">
   `;
 
   container.appendChild(rowDiv);
-
   if (selectedProdId) {
     const selectEl = rowDiv.querySelector('.m-prod-select');
     onMorningProductSelect(selectEl, rowId);
   }
 }
 
-/**
- * 4. دالة حذف السطر وإعادة إتاحة المنتج في بقية القوائم
- */
 function removeMorningRow(rowId) {
   const row = document.getElementById(rowId);
-  if (row) {
-    row.remove();
-    refreshAllMorningSelectOptions();
-  }
+  if (row) { row.remove(); refreshAllMorningSelectOptions(); }
 }
 
-/**
- * 5. تحديث السعر والمخزن الحقيقي وإعادة فلترة القوائم لمنع التكرار
- */
 function onMorningProductSelect(selectEl, rowId) {
   const prodId = selectEl.value;
   const row = document.getElementById(rowId);
@@ -215,27 +177,20 @@ function onMorningProductSelect(selectEl, rowId) {
       priceInput.value = prod.retail_price || 0;
     }
   }
-
   refreshAllMorningSelectOptions();
 }
 
 function refreshAllMorningSelectOptions() {
   const container = document.getElementById('morning-items-container');
   if (!container) return;
-
   const rows = container.querySelectorAll('.invoice-item-row');
-  
-  const selectedValues = Array.from(rows)
-    .map(r => r.querySelector('.m-prod-select')?.value)
-    .filter(val => val && val !== "");
+  const selectedValues = Array.from(rows).map(r => r.querySelector('.m-prod-select')?.value).filter(val => val && val !== "");
 
   rows.forEach(r => {
     const select = r.querySelector('.m-prod-select');
     if (!select) return;
-
     const currentVal = select.value;
     let newHtml = '<option value="">-- اختر الحلوى --</option>';
-
     allProductsList.forEach(p => {
       const isTakenByOther = selectedValues.includes(String(p.id)) && String(p.id) !== String(currentVal);
       if (!isTakenByOther) {
@@ -243,96 +198,330 @@ function refreshAllMorningSelectOptions() {
         newHtml += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
       }
     });
-
     select.innerHTML = newHtml;
   });
 }
 
-/**
- * 6. فحص السطر الأخير وتوليد سطر جديد تلقائياً
- */
 function handleAutoRowAdd(inputEl) {
   const currentRow = inputEl.closest('.invoice-item-row');
   const container = document.getElementById('morning-items-container');
   const allRows = container.querySelectorAll('.invoice-item-row');
-
   if (inputEl.value.trim() !== "" && currentRow === allRows[allRows.length - 1]) {
-    const selectedCount = Array.from(container.querySelectorAll('.m-prod-select'))
-      .filter(s => s.value !== "").length;
-
-    if (selectedCount < allProductsList.length) {
-      addMorningItemRow();
-    }
+    const selectedCount = Array.from(container.querySelectorAll('.m-prod-select')).filter(s => s.value !== "").length;
+    if (selectedCount < allProductsList.length) addMorningItemRow();
   }
 }
 
 /**
- * 7. حفظ وتثبيت خروج السلع للصباح
+ * 4. دوال كريدي وتحصيل زبائن التجزئة
  */
-async function saveMorningDelivery() {
-  const distName = document.getElementById('morning-distributor').value;
-  const distDate = document.getElementById('morning-date').value;
 
-  if (!distName || !distDate) {
-    showAlert("يرجى تحديد اسم الموزع والتاريخ أولاً.");
-    return;
+// رقم صف فريد
+let retailOpRowCounter = 0;
+
+function addRetailOperationRow(custName = '', operationType = 'كريدي', amount = '', notes = '') {
+  const tbody = document.getElementById('retail-credit-tbody');
+  if (!tbody) return;
+
+  retailOpRowCounter++;
+  const rowId = 'rop-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+
+  const today = document.getElementById('morning-date')?.value || new Date().toISOString().split('T')[0];
+  const distName = document.getElementById('morning-distributor')?.value || '';
+
+  const isCredit = operationType === 'كريدي';
+  const amountColor = isCredit ? '#c0392b' : '#27ae60';
+
+  const rowHtml = `
+    <tr id="${rowId}" style="background: #fff;">
+      <td class="rop-num" style="padding: 4px; border: 1px solid #fed7aa; font-weight: bold;">${retailOpRowCounter}</td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="text" class="form-control rop-cust" list="retail-customers-list-main" 
+          value="${custName}" placeholder="اسم الزبون..."
+          style="font-size: 12px; padding: 4px;" oninput="onRetailOpChanged()">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="date" class="form-control rop-date" value="${today}" 
+          style="font-size: 12px; padding: 4px;" onchange="onRetailOpChanged()">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <select class="form-control rop-type" style="font-size: 12px; padding: 4px; font-weight: bold; color: ${amountColor};" onchange="onRetailOpTypeChanged('${rowId}')">
+          <option value="كريدي" ${isCredit ? 'selected' : ''}>كريدي</option>
+          <option value="تحصيل" ${!isCredit ? 'selected' : ''}>تحصيل</option>
+        </select>
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="number" step="any" class="rop-amount" value="${amount}" placeholder="0"
+          style="font-size: 12px; padding: 4px; text-align: center; font-weight: bold; color: ${amountColor};"
+          oninput="onRetailOpChanged()">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="text" class="rop-dist" value="${distName}" readonly
+          style="font-size: 12px; padding: 4px; background: #f0f9ff; font-weight: bold;">
+      </td>
+      <td class="rop-balance" style="padding: 4px; border: 1px solid #fed7aa; font-weight: bold; color: #2980b9;">-</td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="text" class="rop-notes" value="${notes}" placeholder="ملاحظات"
+          style="font-size: 12px; padding: 4px;">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa; text-align: center;">
+        <button type="button" class="btn-action" style="background: #e74c3c; padding: 4px 8px; font-size: 11px;" 
+          onclick="removeRetailOperationRow('${rowId}')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </td>
+    </tr>
+  `;
+
+  tbody.insertAdjacentHTML('beforeend', rowHtml);
+  onRetailOpChanged();
+}
+
+function removeRetailOperationRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (row) {
+    row.remove();
+    onRetailOpChanged();
   }
+}
 
-  const rows = document.querySelectorAll('#morning-items-container .invoice-item-row');
-  const items = [];
+function onRetailOpTypeChanged(rowId) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const type = row.querySelector('.rop-type').value;
+  const amountInput = row.querySelector('.rop-amount');
+  const color = type === 'كريدي' ? '#c0392b' : '#27ae60';
+  amountInput.style.color = color;
+  row.querySelector('.rop-type').style.color = color;
+  onRetailOpChanged();
+}
+
+function onRetailOpChanged() {
+  calculateRetailBalances();
+}
+
+/**
+ * حساب الباقي التراكمي لكل زبون (لكل سطر منفصل)
+ */
+function calculateRetailBalances() {
+  const rows = document.querySelectorAll('#retail-credit-tbody tr');
+  
+  // خريطة تراكمية: key = اسم الزبون، value = الرصيد الحالي
+  const balances = {};
+  
+  let totalCredit = 0;
+  let totalCollection = 0;
 
   rows.forEach(row => {
-    const prodSelect = row.querySelector('.m-prod-select');
-    const qtyInput = row.querySelector('.m-qty-input');
-    const prodId = prodSelect ? prodSelect.value : null;
-    const qty = Number(qtyInput ? qtyInput.value : 0);
+    const custName = row.querySelector('.rop-cust')?.value.trim();
+    const type = row.querySelector('.rop-type')?.value;
+    const amount = Number(row.querySelector('.rop-amount')?.value) || 0;
+    const balanceCell = row.querySelector('.rop-balance');
 
-    if (prodId && qty > 0) {
-      const prod = allProductsList.find(p => String(p.id) === String(prodId));
-      if (prod) {
-        items.push({
-          product_id: prod.id,
-          product_name: prod.name,
-          out_qty: qty,
-          return_qty: 0,
-          sold_qty: 0,
-          retail_price: Number(prod.retail_price) || 0
-        });
-      }
+    if (!custName) {
+      if (balanceCell) balanceCell.textContent = '-';
+      return;
+    }
+
+    if (!balances[custName]) balances[custName] = 0;
+
+    if (type === 'كريدي') {
+      balances[custName] += amount;
+      totalCredit += amount;
+    } else {
+      balances[custName] -= amount;
+      totalCollection += amount;
+    }
+
+    if (balanceCell) {
+      const bal = balances[custName];
+      balanceCell.textContent = bal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      balanceCell.style.color = bal > 0 ? '#c0392b' : (bal < 0 ? '#27ae60' : '#2980b9');
     }
   });
 
-  if (items.length === 0) {
-    showAlert("يرجى اختيار منتج واحد على الأقل وتحديد الكمية الخارجة.");
+  // تحديث مجموع الكريدي في tfoot
+  const totalEl = document.getElementById('retail-credit-total');
+  if (totalEl) {
+    totalEl.textContent = totalCredit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // تحديث جدول الملخص
+  updateRetailBalanceSummary(balances);
+}
+
+/**
+ * تحديث جدول الملخص التراكمي لكل زبون
+ */
+function updateRetailBalanceSummary(balances) {
+  const tbody = document.getElementById('retail-balance-tbody');
+  if (!tbody) return;
+
+  const entries = Object.entries(balances);
+  if (entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="padding: 10px; color: #7c2d12;">لا يوجد زبائن بعد.</td></tr>';
     return;
   }
 
-  showLoader(true);
+  // نحتاج أيضاً مجموع الكريدي ومجموع التحصيل لكل زبون
+  const rows = document.querySelectorAll('#retail-credit-tbody tr');
+  const creditByCust = {};
+  const collectByCust = {};
+
+  rows.forEach(row => {
+    const custName = row.querySelector('.rop-cust')?.value.trim();
+    const type = row.querySelector('.rop-type')?.value;
+    const amount = Number(row.querySelector('.rop-amount')?.value) || 0;
+    if (!custName) return;
+    if (!creditByCust[custName]) creditByCust[custName] = 0;
+    if (!collectByCust[custName]) collectByCust[custName] = 0;
+    if (type === 'كريدي') creditByCust[custName] += amount;
+    else collectByCust[custName] += amount;
+  });
+
+  tbody.innerHTML = '';
+  let idx = 1;
+  entries.forEach(([custName, balance]) => {
+    const credit = creditByCust[custName] || 0;
+    const collection = collectByCust[custName] || 0;
+    const balColor = balance > 0 ? '#c0392b' : (balance < 0 ? '#27ae60' : '#2980b9');
+
+    tbody.innerHTML += `
+      <tr>
+        <td style="padding: 6px; border: 1px solid #fb923c;">${idx++}</td>
+        <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold; text-align: right; padding-right: 12px;">${custName}</td>
+        <td style="padding: 6px; border: 1px solid #fb923c; color: #c0392b; font-weight: bold;">${credit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 6px; border: 1px solid #fb923c; color: #27ae60; font-weight: bold;">${collection.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 6px; border: 1px solid #fb923c; color: ${balColor}; font-weight: bold; font-size: 14px;">${balance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      </tr>
+    `;
+  });
+}
+
+/**
+ * جلب عمليات كريدي/تحصيل زبائن التجزئة من قاعدة البيانات
+ */
+async function loadRetailOperations() {
+  const tbody = document.getElementById('retail-credit-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  retailOpRowCounter = 0;
+
   try {
-    const { error } = await db.from('retail_distributions').insert([{
-      dist_date: distDate,
-      distributor_name: distName,
-      items: items,
-      status: 'morning'
-    }]);
+    const { data, error } = await db
+      .from('retail_credits')
+      .select('*')
+      .order('id', { ascending: true });
 
     if (error) throw error;
 
-    showAlert("تم تثبيت خروج السلعة للصباح بنجاح!");
-    document.getElementById('evening-distributor').value = distName;
-    document.getElementById('evening-date').value = distDate;
-    switchRetailTab('evening');
-    loadEveningDeliveryData();
+    if (data && data.length > 0) {
+      data.forEach(op => {
+        const opType = op.operation_type === 'credit' ? 'كريدي' : 'تحصيل';
+        addRetailOperationRow(op.customer_name || '', opType, op.amount || '', op.notes || '');
+      });
+    } else {
+      addRetailOperationRow();
+    }
 
+    onRetailOpChanged();
   } catch (err) {
-    showAlert("فشل في حفظ البيانات: " + err.message);
-  } finally {
-    showLoader(false);
+    console.warn("تحذير: لم يتم جلب عمليات التجزئة:", err.message);
+    addRetailOperationRow();
   }
 }
 
 /**
- * 8. جلب بيانات استلام الصباح لعرضها في جرد المساء
+ * جلب قائمة زبائن التجزئة في الـ datalist
+ */
+async function fillRetailCustomersDatalist() {
+  try {
+    const { data: custs, error } = await db
+      .from('customers')
+      .select('name')
+      .eq('type', 'detail')
+      .order('name');
+
+    if (error) throw error;
+
+    const datalist = document.getElementById('retail-customers-list-main');
+    if (!datalist) return;
+
+    datalist.innerHTML = '';
+    (custs || []).forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.name;
+      datalist.appendChild(opt);
+    });
+  } catch (err) {
+    console.warn("تحذير: لم يتم جلب زبائن التجزئة:", err.message);
+  }
+}
+
+/**
+ * حفظ عمليات كريدي/تحصيل زبائن التجزئة في قاعدة البيانات
+ */
+async function saveRetailOperations() {
+  const rows = document.querySelectorAll('#retail-credit-tbody tr');
+  const operations = [];
+
+  rows.forEach(row => {
+    const custName = row.querySelector('.rop-cust')?.value.trim();
+    const date = row.querySelector('.rop-date')?.value;
+    const type = row.querySelector('.rop-type')?.value;
+    const amount = Number(row.querySelector('.rop-amount')?.value) || 0;
+    const distName = row.querySelector('.rop-dist')?.value.trim();
+    const notes = row.querySelector('.rop-notes')?.value.trim();
+
+    if (custName && amount > 0) {
+      operations.push({
+        customer_name: custName,
+        operation_date: date,
+        operation_type: type === 'كريدي' ? 'credit' : 'collection',
+        amount: amount,
+        distributor_name: distName,
+        notes: notes || null
+      });
+    }
+  });
+
+  if (operations.length === 0) return { saved: 0, error: null };
+
+  try {
+    // حذف العمليات القديمة لهذه الفترة (اختياري) - يمكنك تفعيله لاحقاً
+    // await db.from('retail_credits').delete().neq('id', 0);
+
+    // إضافة الزبائن الجدد إلى جدول customers (إن لم يكونوا موجودين)
+    const uniqueCustNames = [...new Set(operations.map(o => o.customer_name))];
+    for (const custName of uniqueCustNames) {
+      const { data: existing } = await db
+        .from('customers')
+        .select('id')
+        .eq('name', custName)
+        .maybeSingle();
+
+      if (!existing) {
+        await db.from('customers').insert([{
+          name: custName,
+          type: 'detail',
+          old_credit: 0,
+          last_invoice_seq: 0
+        }]);
+      }
+    }
+
+    // إدراج العمليات
+    const { error } = await db.from('retail_credits').insert(operations);
+    if (error) throw error;
+
+    return { saved: operations.length, error: null };
+  } catch (err) {
+    return { saved: 0, error: err.message };
+  }
+}
+
+/**
+ * 5. دوال جرد المساء
  */
 async function loadEveningDeliveryData() {
   const distName = document.getElementById('evening-distributor').value;
@@ -380,7 +569,6 @@ async function loadEveningDeliveryData() {
       `;
     });
 
-       // تعبئة الحقول: فارغة إذا كانت القيمة 0
     const setFieldValue = (id, val) => {
       const el = document.getElementById(id);
       if (el) el.value = (Number(val) === 0) ? '' : val;
@@ -391,38 +579,6 @@ async function loadEveningDeliveryData() {
     setFieldValue('calc-other-exp', activeMorningRecord.other_expenses);
     setFieldValue('calc-assistance', activeMorningRecord.assistance);
 
-    // ⬇️⬇️⬇️ جلب كريدي زبائن التجزئة ⬇️⬇️⬇️
-    const tbodyCredit = document.getElementById('retail-credit-tbody');
-    if (tbodyCredit) {
-      tbodyCredit.innerHTML = '';
-      
-      // البحث عن الكريدي المحفوظ لهذا الموزع في هذا التاريخ
-      const { data: existingCredits, error: credErr } = await db
-        .from('retail_credits')
-        .select('*')
-        .eq('distributor_name', distName)
-        .eq('credit_date', distDate);
-
-      if (credErr) console.warn("تحذير: لم يتم جلب الكريدي:", credErr.message);
-
-      if (existingCredits && existingCredits.length > 0) {
-        // عرض الكريدي المحفوظ
-        existingCredits.forEach(c => {
-          addRetailCreditRow(
-            c.customer_name || '',
-            c.credit_amount || '',
-            c.collection_amount || '',
-            c.collection_date || '',
-            c.notes || ''
-          );
-        });
-      } else {
-        // إضافة سطر واحد فارغ
-        addRetailCreditRow();
-      }
-    }
-
-    calculateRetailCreditTotals();
     calculateEveningFinal();
 
   } catch (err) {
@@ -432,37 +588,26 @@ async function loadEveningDeliveryData() {
   }
 }
 
-/**
- * 9. احتساب المباع وقيمته فور تعديل الباقي
- */
 function calcRowSold(prodId, outQty, price) {
   const retInput = document.getElementById(`e-ret-${prodId}`);
   let retQty = Number(retInput?.value) || 0;
-
   if (retQty > outQty) { retQty = outQty; retInput.value = outQty; }
   if (retQty < 0) { retQty = 0; retInput.value = 0; }
-
   const sold = outQty - retQty;
   const totalVal = sold * price;
-
   const soldCell = document.getElementById(`e-sold-${prodId}`);
   const valCell = document.getElementById(`e-val-${prodId}`);
   if (soldCell) soldCell.innerText = sold;
   if (valCell) valCell.innerText = `${totalVal} دج`;
-
   calculateEveningFinal();
 }
 
-/**
- * 10. حساب التصفية المالية والصافي المطلوب تسليمه
- */
 function calculateEveningFinal() {
   if (!activeMorningRecord) {
     document.getElementById('calc-sales-total').value = 0;
     document.getElementById('calc-final-amount').innerText = "0.00 دج";
     return;
   }
-
   let totalSales = 0;
   (activeMorningRecord.items || []).forEach(item => {
     const retInput = document.getElementById(`e-ret-${item.product_id}`);
@@ -476,17 +621,13 @@ function calculateEveningFinal() {
   const fuel = Number(document.getElementById('calc-fuel').value) || 0;
   const other = Number(document.getElementById('calc-other-exp').value) || 0;
   const assist = Number(document.getElementById('calc-assistance').value) || 0;
-
   const finalAmount = (totalSales + collected) - (newCredit + fuel + other + assist);
-
   document.getElementById('calc-sales-total').value = totalSales;
   document.getElementById('calc-final-amount').innerText = `${finalAmount.toLocaleString('fr-FR')} دج`;
 }
 
 /**
- * 11. إقفال الحساب اليومي وتأكيد مبيعات التجزئة
- *     -- تعديل: بعد الإقفال، تُنشأ تلقائياً عمليات "بيع تجزئة" في جدول
- *        invoice_operations لكل منتج تم بيعه، لتظهر في جدول حالة المخزون.
+ * 6. حفظ وإقفال جرد المساء
  */
 async function saveEveningSettlement() {
   if (!activeMorningRecord) {
@@ -498,11 +639,7 @@ async function saveEveningSettlement() {
     const retInput = document.getElementById(`e-ret-${item.product_id}`);
     const retQty = Number(retInput?.value) || 0;
     const sold = Math.max(0, item.out_qty - retQty);
-    return {
-      ...item,
-      return_qty: retQty,
-      sold_qty: sold
-    };
+    return { ...item, return_qty: retQty, sold_qty: sold };
   });
 
   const totalSales = Number(document.getElementById('calc-sales-total').value) || 0;
@@ -512,8 +649,6 @@ async function saveEveningSettlement() {
   const other = Number(document.getElementById('calc-other-exp').value) || 0;
   const assist = Number(document.getElementById('calc-assistance').value) || 0;
   const finalAmount = (totalSales + collected) - (newCredit + fuel + other + assist);
-
-  // منع التكرار: إذا كان هذا السجل مُقفلاً بالفعل من قبل، لا نعيد إدراج العمليات مرة أخرى
   const alreadyClosed = activeMorningRecord.status === 'closed';
 
   showLoader(true);
@@ -535,36 +670,32 @@ async function saveEveningSettlement() {
 
     if (error) throw error;
 
-    // === الإضافة الجديدة: تسجيل مبيعات التجزئة في invoice_operations ===
-    // ليقرأها stock.js تحت عمود "مباعة تجزئة (-)" بنفس منطق باقي العمليات.
-    // الأعمدة هنا مطابقة تماماً لما يستخدمه invoice_ops.js عند submitCompleteInvoice:
-    // customer_name, invoice_number, operation_type, product_name, price, quantity, operation_date
     if (!alreadyClosed) {
-      // رقم وصل اصطناعي وفريد لكل تصفية يومية، يجمع كل أسطرها معاً لتتبعها لاحقاً
       const retailReceiptNumber = `TJZ-${activeMorningRecord.dist_date}-${activeMorningRecord.id}`;
-
-      const opsToInsert = updatedItems
-        .filter(item => item.sold_qty > 0)
-        .map(item => ({
-          customer_name: activeMorningRecord.distributor_name,
-          receipt_number: retailReceiptNumber,
-          operation_type: 'بيع تجزئة',
-          product_name: item.product_name,
-          price: item.retail_price,
-          quantity: item.sold_qty,
-          operation_date: activeMorningRecord.dist_date
-        }));
+      const opsToInsert = updatedItems.filter(item => item.sold_qty > 0).map(item => ({
+        customer_name: activeMorningRecord.distributor_name,
+        receipt_number: retailReceiptNumber,
+        operation_type: 'بيع تجزئة',
+        product_name: item.product_name,
+        price: item.retail_price,
+        quantity: item.sold_qty,
+        operation_date: activeMorningRecord.dist_date
+      }));
 
       if (opsToInsert.length > 0) {
-        const { error: opsError } = await db
-          .from('invoice_operations')
-          .insert(opsToInsert);
-
+        const { error: opsError } = await db.from('invoice_operations').insert(opsToInsert);
         if (opsError) throw opsError;
       }
     }
 
-    showAlert("تم إقفال الحساب وتحديث مبيعات التجزئة بنجاح!");
+    // حفظ عمليات كريدي/تحصيل زبائن التجزئة
+    const saveResult = await saveRetailOperations();
+    if (saveResult.error) {
+      showAlert("تحذير: تم إقفال الجرد، لكن فشل حفظ كريدي زبائن التجزئة: " + saveResult.error);
+    } else {
+      showAlert(`تم إقفال الحساب بنجاح! (تم حفظ ${saveResult.saved} عملية كريدي/تحصيل)`);
+    }
+
     switchRetailTab('report');
 
   } catch (err) {
@@ -575,7 +706,7 @@ async function saveEveningSettlement() {
 }
 
 /**
- * 12. جدول تقرير التجزئة الشامل المطابق للإكسل
+ * 7. تقرير التجزئة
  */
 async function loadRetailReportTable() {
   showLoader(true);
@@ -633,205 +764,4 @@ async function loadRetailReportTable() {
             <span style="padding: 3px 8px; border-radius: 10px; font-size: 12px; color: white; background: ${r.status === 'closed' ? '#059669' : '#eab308'};">
               ${r.status === 'closed' ? 'مغلق ومباع' : 'خروج صباح'}
             </span>
-          </td>
-          ${prodCols}
-          <td style="font-weight: bold; color: #059669;">${(r.final_amount || 0).toLocaleString('fr-FR')} دج</td>
-        </tr>
-      `;
-    });
-
-    let footCols = '';
-    allProductsList.forEach(p => {
-      footCols += `<td style="background: #1e293b; color: #38bdf8; font-weight: bold;">${colTotals[p.name]}</td>`;
-    });
-
-    tfoot.innerHTML = `
-      <tr style="border-top: 2px solid #0f172a;">
-        <td colspan="4" style="background: #0f172a; color: white; font-weight: bold;">مجموع مبيعات التجزئة التراكمية:</td>
-        ${footCols}
-        <td style="background: #0f172a;"></td>
-      </tr>
-    `;
-
-  } catch (err) {
-    showAlert("خطأ في جلب تقرير التجزئة: " + err.message);
-  } finally {
-    showLoader(false);
-  }
-}
-
-/**
- * =========================================================================
- * [قسم جديد] كريدي زبائن التجزئة
- * =========================================================================
- */
-
-/**
- * دالة إضافة سطر جديد لكريدي زبائن التجزئة
- */
-function addRetailCreditRow(custName = '', creditAmt = '', collectAmt = '', collectDate = '', notes = '') {
-  const tbody = document.getElementById('retail-credit-tbody');
-  if (!tbody) return;
-
-  const rowId = 'rc-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-  
-  const rowHtml = `
-    <tr id="${rowId}" style="background: #fff;">
-      <td style="padding: 4px; border: 1px solid #fed7aa; font-weight: bold;">+</td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="text" class="form-control rc-cust-name" list="retail-customers-list-main" 
-          placeholder="اكتب اسم زبون التجزئة..." value="${custName}" 
-          style="font-size: 12px; padding: 4px;"
-          oninput="onRetailCustomerInput(this)">
-        </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="number" step="any" class="form-control rc-credit-amt" 
-          placeholder="0" value="${creditAmt}" 
-          style="font-size: 12px; padding: 4px; text-align: center;"
-          oninput="calculateRetailCreditTotals()">
-      </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="number" step="any" class="form-control rc-collect-amt" 
-          placeholder="0" value="${collectAmt}" 
-          style="font-size: 12px; padding: 4px; text-align: center;"
-          oninput="calculateRetailCreditTotals()">
-      </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="date" class="form-control rc-collect-date" 
-          value="${collectDate}" 
-          style="font-size: 12px; padding: 4px;">
-      </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="text" class="form-control rc-notes" 
-          placeholder="ملاحظات" value="${notes}" 
-          style="font-size: 12px; padding: 4px;">
-      </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa; text-align: center;">
-        <button type="button" class="btn-action" 
-          style="background: #e74c3c; padding: 4px 8px; font-size: 11px;" 
-          onclick="removeRetailCreditRow('${rowId}')">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </td>
-    </tr>
-  `;
-
-  tbody.insertAdjacentHTML('beforeend', rowHtml);
-
-  // تحديث أرقام الأسطر
-  updateRetailCreditRowNumbers();
-
-  // جلب قائمة زبائن التجزئة
-  fillRetailCustomersDatalist();
-}
-
-/**
- * دالة حذف سطر من كريدي زبائن التجزئة
- */
-function removeRetailCreditRow(rowId) {
-  const row = document.getElementById(rowId);
-  if (row) {
-    row.remove();
-    updateRetailCreditRowNumbers();
-    calculateRetailCreditTotals();
-  }
-}
-
-/**
- * دالة تحديث أرقام الأسطر
- */
-function updateRetailCreditRowNumbers() {
-  const rows = document.querySelectorAll('#retail-credit-tbody tr');
-  rows.forEach((row, idx) => {
-    const firstCell = row.querySelector('td:first-child');
-    if (firstCell) firstCell.textContent = idx + 1;
-  });
-}
-
-/**
- * دالة حساب مجاميع الكريدي والتحصيل
- */
-function calculateRetailCreditTotals() {
-  let totalCredit = 0;
-  let totalCollection = 0;
-
-  const rows = document.querySelectorAll('#retail-credit-tbody tr');
-  rows.forEach(row => {
-    const creditInput = row.querySelector('.rc-credit-amt');
-    const collectInput = row.querySelector('.rc-collect-amt');
-    
-    if (creditInput) totalCredit += Number(creditInput.value) || 0;
-    if (collectInput) totalCollection += Number(collectInput.value) || 0;
-  });
-
-  const totalCreditEl = document.getElementById('retail-credit-total');
-  const totalCollectionEl = document.getElementById('retail-collection-total');
-
-  if (totalCreditEl) {
-    totalCreditEl.textContent = totalCredit.toLocaleString('fr-FR', { 
-      minimumFractionDigits: 2, 
-      maximumFractionDigits: 2 
-    });
-  }
-  if (totalCollectionEl) {
-    totalCollectionEl.textContent = totalCollection.toLocaleString('fr-FR', { 
-      minimumFractionDigits: 2, 
-      maximumFractionDigits: 2 
-    });
-  }
-
-  // ⬇️⬇️⬇️ نقل القيم تلقائياً إلى التصفية المالية ⬇️⬇️⬇️
-  const newCreditInput = document.getElementById('calc-new-credit');
-  const collectedCreditInput = document.getElementById('calc-collected-credit');
-
-  if (newCreditInput) {
-    newCreditInput.value = totalCredit === 0 ? '' : totalCredit;
-  }
-  if (collectedCreditInput) {
-    collectedCreditInput.value = totalCollection === 0 ? '' : totalCollection;
-  }
-
-  // إعادة حساب التصفية المالية
-  if (typeof calculateEveningFinal === 'function') {
-    calculateEveningFinal();
-  }
-}
-
-/**
- * دالة عند إدخال اسم زبون التجزئة
- */
-function onRetailCustomerInput(inputEl) {
-  // نستخدم هذه الدالة للتحقق أو الإضافة التلقائية لاحقاً
-  // حالياً، لا نفعل شيئاً
-}
-
-/**
- * دالة تعبئة قائمة زبائن التجزئة في الـ datalist
- */
-/**
- * دالة تعبئة قائمة زبائن التجزئة في الـ datalist
- */
-async function fillRetailCustomersDatalist() {
-  try {
-    const { data: custs, error } = await db
-      .from('customers')
-      .select('name')
-      .eq('type', 'detail')
-      .order('name');
-
-    if (error) throw error;
-
-    const datalist = document.getElementById('retail-customers-list-main');
-    if (!datalist) return;
-
-    datalist.innerHTML = '';
-    (custs || []).forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.name;
-      datalist.appendChild(opt);
-    });
-
-  } catch (err) {
-    console.warn("تحذير: لم يتم جلب زبائن التجزئة:", err.message);
-  }
-}
+          </
