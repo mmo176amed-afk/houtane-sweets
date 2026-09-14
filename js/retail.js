@@ -764,4 +764,29 @@ async function loadRetailReportTable() {
             <span style="padding: 3px 8px; border-radius: 10px; font-size: 12px; color: white; background: ${r.status === 'closed' ? '#059669' : '#eab308'};">
               ${r.status === 'closed' ? 'مغلق ومباع' : 'خروج صباح'}
             </span>
-          </
+          </td>
+          ${prodCols}
+          <td style="font-weight: bold; color: #059669;">${(r.final_amount || 0).toLocaleString('fr-FR')} دج</td>
+        </tr>
+      `;
+    });
+
+    let footCols = '';
+    allProductsList.forEach(p => {
+      footCols += `<td style="background: #1e293b; color: #38bdf8; font-weight: bold;">${colTotals[p.name]}</td>`;
+    });
+
+    tfoot.innerHTML = `
+      <tr style="border-top: 2px solid #0f172a;">
+        <td colspan="4" style="background: #0f172a; color: white; font-weight: bold;">مجموع مبيعات التجزئة التراكمية:</td>
+        ${footCols}
+        <td style="background: #0f172a;"></td>
+      </tr>
+    `;
+
+  } catch (err) {
+    showAlert("خطأ في جلب تقرير التجزئة: " + err.message);
+  } finally {
+    showLoader(false);
+  }
+}
