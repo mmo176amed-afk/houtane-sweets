@@ -88,7 +88,7 @@ async function submitProduct() {
       if (qty > 0) {
         const { error: opErr } = await db.from('invoice_operations').insert([{
           customer_name: 'إنتاج داخلي',
-          invoice_number: `PROD-${Date.now()}`,
+          receipt_number: `PROD-${Date.now()}`,
           operation_type: 'سلعة منتجة',
           product_name: existing.name,
           price: wholesale,
