@@ -7,6 +7,7 @@
 
 let allProductsList = [];
 let activeMorningRecord = null;
+let eveningCreditRowCounter = 0;
 
 /**
  * 1. دالة فتح وتهيئة واجهة التجزئة والموزعين
@@ -54,19 +55,20 @@ async function openRetailDistributionView() {
       return { ...p, real_stock: realStock };
     });
 
-    // جلب الموزعين (نوعهم distributor)
-    const { data: custs, error: cErr } = await db
+    // جلب الموزعين فقط (النوع distributor) مباشرة من قاعدة البيانات
+    // -- هذا هو التعديل الذي يمنع ظهور زبائن الجملة ضمن قائمة الموزعين --
+    const { data: distributors, error: cErr } = await db
       .from('customers')
       .select('name, type')
+      .eq('type', 'distributor')
       .order('name');
     if (cErr) throw cErr;
 
-    const distributors = (custs || []).filter(c => c.type === 'distributor');
     const fillDatalist = (elId, list) => {
       const datalist = document.getElementById(elId);
       if (!datalist) return;
       datalist.innerHTML = '';
-      list.forEach(c => {
+      (list || []).forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.name;
         datalist.appendChild(opt);
@@ -75,11 +77,11 @@ async function openRetailDistributionView() {
     fillDatalist('distributors-list-morning', distributors);
     fillDatalist('distributors-list', distributors);
 
-    // جلب زبائن التجزئة لقائمة العمليات
+    // جلب زبائن التجزئة لقائمة الإكمال التلقائي في جدول الكريدي
     await fillRetailCustomersDatalist();
 
-    // جلب عمليات التجزئة (كريدي/تحصيل)
-    await loadRetailOperations();
+    // جلب السجل التاريخي الكامل لكريدي/تحصيل زبائن التجزئة (يبقى في صفحة الصباح)
+    await loadRetailLedgerTable();
 
     const container = document.getElementById('morning-items-container');
     container.innerHTML = '';
@@ -213,226 +215,149 @@ function handleAutoRowAdd(inputEl) {
 }
 
 /**
- * 4. دوال كريدي وتحصيل زبائن التجزئة
+ * 4. حفظ (تثبيت) خروج السلعة للصباح
+ * -- هذه الدالة كانت مفقودة بالكامل من الملف الأصلي، وهي سبب عدم عمل الزر --
  */
+async function saveMorningDelivery() {
+  const distName = document.getElementById('morning-distributor').value.trim();
+  const distDate = document.getElementById('morning-date').value;
 
-// رقم صف فريد
-let retailOpRowCounter = 0;
-
-function addRetailOperationRow(custName = '', operationType = 'كريدي', amount = '', notes = '') {
-  const tbody = document.getElementById('retail-credit-tbody');
-  if (!tbody) return;
-
-  retailOpRowCounter++;
-  const rowId = 'rop-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-
-  const today = document.getElementById('morning-date')?.value || new Date().toISOString().split('T')[0];
-  const distName = document.getElementById('morning-distributor')?.value || '';
-
-  const isCredit = operationType === 'كريدي';
-  const amountColor = isCredit ? '#c0392b' : '#27ae60';
-
-  const rowHtml = `
-    <tr id="${rowId}" style="background: #fff;">
-      <td class="rop-num" style="padding: 4px; border: 1px solid #fed7aa; font-weight: bold;">${retailOpRowCounter}</td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="text" class="form-control rop-cust" list="retail-customers-list-main" 
-          value="${custName}" placeholder="اسم الزبون..."
-          style="font-size: 12px; padding: 4px;" oninput="onRetailOpChanged()">
-      </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="date" class="form-control rop-date" value="${today}" 
-          style="font-size: 12px; padding: 4px;" onchange="onRetailOpChanged()">
-      </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <select class="form-control rop-type" style="font-size: 12px; padding: 4px; font-weight: bold; color: ${amountColor};" onchange="onRetailOpTypeChanged('${rowId}')">
-          <option value="كريدي" ${isCredit ? 'selected' : ''}>كريدي</option>
-          <option value="تحصيل" ${!isCredit ? 'selected' : ''}>تحصيل</option>
-        </select>
-      </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="number" step="any" class="rop-amount" value="${amount}" placeholder="0"
-          style="font-size: 12px; padding: 4px; text-align: center; font-weight: bold; color: ${amountColor};"
-          oninput="onRetailOpChanged()">
-      </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="text" class="rop-dist" value="${distName}" readonly
-          style="font-size: 12px; padding: 4px; background: #f0f9ff; font-weight: bold;">
-      </td>
-      <td class="rop-balance" style="padding: 4px; border: 1px solid #fed7aa; font-weight: bold; color: #2980b9;">-</td>
-      <td style="padding: 4px; border: 1px solid #fed7aa;">
-        <input type="text" class="rop-notes" value="${notes}" placeholder="ملاحظات"
-          style="font-size: 12px; padding: 4px;">
-      </td>
-      <td style="padding: 4px; border: 1px solid #fed7aa; text-align: center;">
-        <button type="button" class="btn-action" style="background: #e74c3c; padding: 4px 8px; font-size: 11px;" 
-          onclick="removeRetailOperationRow('${rowId}')">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </td>
-    </tr>
-  `;
-
-  tbody.insertAdjacentHTML('beforeend', rowHtml);
-  onRetailOpChanged();
-}
-
-function removeRetailOperationRow(rowId) {
-  const row = document.getElementById(rowId);
-  if (row) {
-    row.remove();
-    onRetailOpChanged();
+  if (!distName) {
+    showAlert("يرجى كتابة اسم الموزع!");
+    return;
   }
-}
-
-function onRetailOpTypeChanged(rowId) {
-  const row = document.getElementById(rowId);
-  if (!row) return;
-  const type = row.querySelector('.rop-type').value;
-  const amountInput = row.querySelector('.rop-amount');
-  const color = type === 'كريدي' ? '#c0392b' : '#27ae60';
-  amountInput.style.color = color;
-  row.querySelector('.rop-type').style.color = color;
-  onRetailOpChanged();
-}
-
-function onRetailOpChanged() {
-  calculateRetailBalances();
-}
-
-/**
- * حساب الباقي التراكمي لكل زبون (لكل سطر منفصل)
- */
-function calculateRetailBalances() {
-  const rows = document.querySelectorAll('#retail-credit-tbody tr');
-  
-  // خريطة تراكمية: key = اسم الزبون، value = الرصيد الحالي
-  const balances = {};
-  
-  let totalCredit = 0;
-  let totalCollection = 0;
-
-  rows.forEach(row => {
-    const custName = row.querySelector('.rop-cust')?.value.trim();
-    const type = row.querySelector('.rop-type')?.value;
-    const amount = Number(row.querySelector('.rop-amount')?.value) || 0;
-    const balanceCell = row.querySelector('.rop-balance');
-
-    if (!custName) {
-      if (balanceCell) balanceCell.textContent = '-';
-      return;
-    }
-
-    if (!balances[custName]) balances[custName] = 0;
-
-    if (type === 'كريدي') {
-      balances[custName] += amount;
-      totalCredit += amount;
-    } else {
-      balances[custName] -= amount;
-      totalCollection += amount;
-    }
-
-    if (balanceCell) {
-      const bal = balances[custName];
-      balanceCell.textContent = bal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      balanceCell.style.color = bal > 0 ? '#c0392b' : (bal < 0 ? '#27ae60' : '#2980b9');
-    }
-  });
-
-  // تحديث مجموع الكريدي في tfoot
-  const totalEl = document.getElementById('retail-credit-total');
-  if (totalEl) {
-    totalEl.textContent = totalCredit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
-  // تحديث جدول الملخص
-  updateRetailBalanceSummary(balances);
-}
-
-/**
- * تحديث جدول الملخص التراكمي لكل زبون
- */
-function updateRetailBalanceSummary(balances) {
-  const tbody = document.getElementById('retail-balance-tbody');
-  if (!tbody) return;
-
-  const entries = Object.entries(balances);
-  if (entries.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="padding: 10px; color: #7c2d12;">لا يوجد زبائن بعد.</td></tr>';
+  if (!distDate) {
+    showAlert("يرجى اختيار التاريخ!");
     return;
   }
 
-  // نحتاج أيضاً مجموع الكريدي ومجموع التحصيل لكل زبون
-  const rows = document.querySelectorAll('#retail-credit-tbody tr');
-  const creditByCust = {};
-  const collectByCust = {};
+  const container = document.getElementById('morning-items-container');
+  const rows = container.querySelectorAll('.invoice-item-row');
+  const items = [];
 
   rows.forEach(row => {
-    const custName = row.querySelector('.rop-cust')?.value.trim();
-    const type = row.querySelector('.rop-type')?.value;
-    const amount = Number(row.querySelector('.rop-amount')?.value) || 0;
-    if (!custName) return;
-    if (!creditByCust[custName]) creditByCust[custName] = 0;
-    if (!collectByCust[custName]) collectByCust[custName] = 0;
-    if (type === 'كريدي') creditByCust[custName] += amount;
-    else collectByCust[custName] += amount;
+    const prodId = row.querySelector('.m-prod-select')?.value;
+    const qty = Number(row.querySelector('.m-qty-input')?.value) || 0;
+    const price = Number(row.querySelector('.m-price-input')?.value) || 0;
+    if (prodId && qty > 0) {
+      const prod = allProductsList.find(p => String(p.id) === String(prodId));
+      items.push({
+        product_id: Number(prodId),
+        product_name: prod ? prod.name : '',
+        out_qty: qty,
+        retail_price: price,
+        return_qty: 0
+      });
+    }
   });
 
-  tbody.innerHTML = '';
-  let idx = 1;
-  entries.forEach(([custName, balance]) => {
-    const credit = creditByCust[custName] || 0;
-    const collection = collectByCust[custName] || 0;
-    const balColor = balance > 0 ? '#c0392b' : (balance < 0 ? '#27ae60' : '#2980b9');
+  if (items.length === 0) {
+    showAlert("يرجى إضافة منتج واحد على الأقل بكمية صحيحة!");
+    return;
+  }
 
-    tbody.innerHTML += `
-      <tr>
-        <td style="padding: 6px; border: 1px solid #fb923c;">${idx++}</td>
-        <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold; text-align: right; padding-right: 12px;">${custName}</td>
-        <td style="padding: 6px; border: 1px solid #fb923c; color: #c0392b; font-weight: bold;">${credit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 6px; border: 1px solid #fb923c; color: #27ae60; font-weight: bold;">${collection.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 6px; border: 1px solid #fb923c; color: ${balColor}; font-weight: bold; font-size: 14px;">${balance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-      </tr>
-    `;
-  });
+  showLoader(true);
+  try {
+    // التحقق من وجود سجل سابق لنفس الموزع/التاريخ لم يُغلق بعد، لتفادي التكرار
+    const { data: existing, error: exErr } = await db
+      .from('retail_distributions')
+      .select('id, status')
+      .eq('dist_date', distDate)
+      .eq('distributor_name', distName)
+      .order('id', { ascending: false })
+      .limit(1);
+
+    if (exErr) throw exErr;
+
+    if (existing && existing.length > 0 && existing[0].status !== 'closed') {
+      const { error: updErr } = await db
+        .from('retail_distributions')
+        .update({ items: items })
+        .eq('id', existing[0].id);
+      if (updErr) throw updErr;
+    } else {
+      const { error: insErr } = await db
+        .from('retail_distributions')
+        .insert([{
+          dist_date: distDate,
+          distributor_name: distName,
+          items: items,
+          status: 'out'
+        }]);
+      if (insErr) throw insErr;
+    }
+
+    showAlert("تم تثبيت خروج السلعة بنجاح!");
+
+    document.getElementById('morning-items-container').innerHTML = '';
+    addMorningItemRow();
+
+  } catch (err) {
+    showAlert("خطأ أثناء حفظ خروج السلعة: " + err.message);
+  } finally {
+    showLoader(false);
+  }
 }
 
 /**
- * جلب عمليات كريدي/تحصيل زبائن التجزئة من قاعدة البيانات
+ * 5. جدول السجل التاريخي لكريدي/تحصيل زبائن التجزئة (يبقى في صفحة الصباح)
+ * الأعمدة: # / اسم الزبون / التسمية / القيمة / التاريخ / اسم الموزع / الباقي التراكمي
  */
-async function loadRetailOperations() {
-  const tbody = document.getElementById('retail-credit-tbody');
+async function loadRetailLedgerTable() {
+  const tbody = document.getElementById('retail-balance-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '';
-  retailOpRowCounter = 0;
-
   try {
     const { data, error } = await db
       .from('retail_credits')
       .select('*')
+      .order('operation_date', { ascending: true })
       .order('id', { ascending: true });
-
     if (error) throw error;
 
-    if (data && data.length > 0) {
-      data.forEach(op => {
-        const opType = op.operation_type === 'credit' ? 'كريدي' : 'تحصيل';
-        addRetailOperationRow(op.customer_name || '', opType, op.amount || '', op.notes || '');
-      });
-    } else {
-      addRetailOperationRow();
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="padding: 10px; color: #7c2d12;">لا يوجد عمليات بعد.</td></tr>';
+      return;
     }
 
-    onRetailOpChanged();
+    const balances = {};
+    const rowsHtml = [];
+
+    data.forEach((op, idx) => {
+      const custName = op.customer_name;
+      if (!(custName in balances)) balances[custName] = 0;
+
+      const isCredit = op.operation_type === 'credit';
+      const amount = Number(op.amount) || 0;
+      balances[custName] += isCredit ? amount : -amount;
+
+      const bal = balances[custName];
+      const balColor = bal > 0 ? '#c0392b' : (bal < 0 ? '#27ae60' : '#2980b9');
+      const label = isCredit ? 'كريدي' : 'تحصيل';
+      const labelColor = isCredit ? '#c0392b' : '#27ae60';
+
+      rowsHtml.push(`
+        <tr>
+          <td style="padding: 6px; border: 1px solid #fb923c;">${idx + 1}</td>
+          <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold; text-align: right; padding-right: 12px;">${custName}</td>
+          <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold; color: ${labelColor};">${label}</td>
+          <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold;" dir="ltr">${amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          <td style="padding: 6px; border: 1px solid #fb923c;">${op.operation_date}</td>
+          <td style="padding: 6px; border: 1px solid #fb923c;">${op.distributor_name || ''}</td>
+          <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold; color: ${balColor};" dir="ltr">${bal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        </tr>
+      `);
+    });
+
+    // عرض الأحدث أولاً مع بقاء الباقي التراكمي محسوباً بالترتيب الزمني الصحيح
+    tbody.innerHTML = rowsHtml.reverse().join('');
+
   } catch (err) {
-    console.warn("تحذير: لم يتم جلب عمليات التجزئة:", err.message);
-    addRetailOperationRow();
+    console.warn("تعذر جلب سجل كريدي التجزئة:", err.message);
   }
 }
 
 /**
- * جلب قائمة زبائن التجزئة في الـ datalist
+ * جلب قائمة زبائن التجزئة في الـ datalist (للإكمال التلقائي داخل جدول المساء)
  */
 async function fillRetailCustomersDatalist() {
   try {
@@ -459,40 +384,160 @@ async function fillRetailCustomersDatalist() {
 }
 
 /**
- * حفظ عمليات كريدي/تحصيل زبائن التجزئة في قاعدة البيانات
+ * 6. جدول كريدي/تحصيل زبائن التجزئة داخل صفحة المساء (السطر الثاني في صندوق التصفية المالية)
  */
-async function saveRetailOperations() {
-  const rows = document.querySelectorAll('#retail-credit-tbody tr');
-  const operations = [];
+function addEveningCreditRow(custName = '', creditVal = '', collectVal = '', notes = '') {
+  const tbody = document.getElementById('evening-credit-tbody');
+  if (!tbody) return;
+
+  eveningCreditRowCounter++;
+  const rowId = 'ecr-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+
+  const rowHtml = `
+    <tr id="${rowId}">
+      <td style="padding: 4px; border: 1px solid #fed7aa; font-weight: bold;">${eveningCreditRowCounter}</td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="text" class="form-control ec-name" list="retail-customers-list-main"
+          value="${custName}" placeholder="اسم الزبون..."
+          style="font-size: 12px; padding: 4px;">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="number" step="any" class="ec-credit" value="${creditVal}" placeholder="0"
+          style="font-size: 12px; padding: 4px; text-align: center; font-weight: bold; color: #c0392b; width: 100%;"
+          oninput="recalcEveningCreditTotals()">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="number" step="any" class="ec-collect" value="${collectVal}" placeholder="0"
+          style="font-size: 12px; padding: 4px; text-align: center; font-weight: bold; color: #27ae60; width: 100%;"
+          oninput="recalcEveningCreditTotals()">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa;">
+        <input type="text" class="ec-notes" value="${notes}" placeholder="ملاحظات"
+          style="font-size: 12px; padding: 4px;">
+      </td>
+      <td style="padding: 4px; border: 1px solid #fed7aa; text-align: center;">
+        <button type="button" class="btn-action" style="background: #e74c3c; padding: 4px 8px; font-size: 11px;"
+          onclick="removeEveningCreditRow('${rowId}')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </td>
+    </tr>
+  `;
+
+  tbody.insertAdjacentHTML('beforeend', rowHtml);
+  recalcEveningCreditTotals();
+}
+
+function removeEveningCreditRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (row) {
+    row.remove();
+    recalcEveningCreditTotals();
+  }
+}
+
+/**
+ * إعادة حساب مجموع الكريدي ومجموع التحصيل، وتحديث خانتي
+ * "تحصيل الكريدي" و"كريدي اليوم الجديد" في السطر الأول تلقائياً
+ */
+function recalcEveningCreditTotals() {
+  const rows = document.querySelectorAll('#evening-credit-tbody tr');
+  let totalCredit = 0;
+  let totalCollect = 0;
 
   rows.forEach(row => {
-    const custName = row.querySelector('.rop-cust')?.value.trim();
-    const date = row.querySelector('.rop-date')?.value;
-    const type = row.querySelector('.rop-type')?.value;
-    const amount = Number(row.querySelector('.rop-amount')?.value) || 0;
-    const distName = row.querySelector('.rop-dist')?.value.trim();
-    const notes = row.querySelector('.rop-notes')?.value.trim();
-
-    if (custName && amount > 0) {
-      operations.push({
-        customer_name: custName,
-        operation_date: date,
-        operation_type: type === 'كريدي' ? 'credit' : 'collection',
-        amount: amount,
-        distributor_name: distName,
-        notes: notes || null
-      });
-    }
+    totalCredit += Number(row.querySelector('.ec-credit')?.value) || 0;
+    totalCollect += Number(row.querySelector('.ec-collect')?.value) || 0;
   });
 
-  if (operations.length === 0) return { saved: 0, error: null };
+  const totalCreditEl = document.getElementById('evening-credit-total');
+  const totalCollectEl = document.getElementById('evening-collect-total');
+  if (totalCreditEl) totalCreditEl.textContent = totalCredit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (totalCollectEl) totalCollectEl.textContent = totalCollect.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  document.getElementById('calc-new-credit').value = totalCredit;
+  document.getElementById('calc-collected-credit').value = totalCollect;
+
+  calculateEveningFinal();
+}
+
+/**
+ * جلب عمليات كريدي/تحصيل محفوظة سابقاً لنفس الموزع/التاريخ (حالة إعادة فتح يوم مُغلق)
+ */
+async function loadEveningCreditRows(distName, distDate) {
+  const tbody = document.getElementById('evening-credit-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  eveningCreditRowCounter = 0;
 
   try {
-    // حذف العمليات القديمة لهذه الفترة (اختياري) - يمكنك تفعيله لاحقاً
-    // await db.from('retail_credits').delete().neq('id', 0);
+    const { data, error } = await db
+      .from('retail_credits')
+      .select('*')
+      .eq('operation_date', distDate)
+      .eq('distributor_name', distName)
+      .order('id', { ascending: true });
 
-    // إضافة الزبائن الجدد إلى جدول customers (إن لم يكونوا موجودين)
-    const uniqueCustNames = [...new Set(operations.map(o => o.customer_name))];
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      data.forEach(op => {
+        const isCredit = op.operation_type === 'credit';
+        addEveningCreditRow(
+          op.customer_name || '',
+          isCredit ? (op.amount || '') : '',
+          !isCredit ? (op.amount || '') : '',
+          op.notes || ''
+        );
+      });
+    } else {
+      addEveningCreditRow();
+    }
+  } catch (err) {
+    console.warn("تعذر جلب عمليات الكريدي لهذا اليوم:", err.message);
+    addEveningCreditRow();
+  }
+}
+
+/**
+ * حفظ عمليات كريدي/تحصيل زبائن التجزئة بعد التصفية (الصافي بين الكريدي والتحصيل لكل زبون)
+ */
+async function saveEveningCreditOperations(distName, distDate) {
+  const rows = document.querySelectorAll('#evening-credit-tbody tr');
+  const netOps = [];
+
+  rows.forEach(row => {
+    const custName = row.querySelector('.ec-name')?.value.trim();
+    const creditVal = Number(row.querySelector('.ec-credit')?.value) || 0;
+    const collectVal = Number(row.querySelector('.ec-collect')?.value) || 0;
+    const notes = row.querySelector('.ec-notes')?.value.trim();
+
+    if (!custName) return;
+
+    const net = collectVal - creditVal;
+    if (net === 0) return; // لا فرق صافي، لا داعي لتسجيل عملية
+
+    netOps.push({
+      customer_name: custName,
+      operation_date: distDate,
+      operation_type: net > 0 ? 'collection' : 'credit',
+      amount: Math.abs(net),
+      distributor_name: distName,
+      notes: notes || null
+    });
+  });
+
+  if (netOps.length === 0) return { saved: 0, error: null };
+
+  try {
+    // حذف أي عمليات محفوظة سابقاً لنفس الموزع ونفس اليوم لتفادي التكرار عند إعادة الحفظ/التعديل
+    await db.from('retail_credits')
+      .delete()
+      .eq('operation_date', distDate)
+      .eq('distributor_name', distName);
+
+    // تسجيل الزبائن الجدد في جدول customers إن لم يكونوا موجودين
+    const uniqueCustNames = [...new Set(netOps.map(o => o.customer_name))];
     for (const custName of uniqueCustNames) {
       const { data: existing } = await db
         .from('customers')
@@ -510,18 +555,17 @@ async function saveRetailOperations() {
       }
     }
 
-    // إدراج العمليات
-    const { error } = await db.from('retail_credits').insert(operations);
+    const { error } = await db.from('retail_credits').insert(netOps);
     if (error) throw error;
 
-    return { saved: operations.length, error: null };
+    return { saved: netOps.length, error: null };
   } catch (err) {
     return { saved: 0, error: err.message };
   }
 }
 
 /**
- * 5. دوال جرد المساء
+ * 7. دوال جرد المساء
  */
 async function loadEveningDeliveryData() {
   const distName = document.getElementById('evening-distributor').value;
@@ -547,6 +591,7 @@ async function loadEveningDeliveryData() {
     if (!data || data.length === 0) {
       tbody.innerHTML = `<tr><td colspan="6" style="padding: 15px; color: #e11d48; font-weight: bold;">لم يتم تسجيل خروج سلع لهذا الموزع في هذا اليوم.</td></tr>`;
       activeMorningRecord = null;
+      await loadEveningCreditRows(distName, distDate);
       calculateEveningFinal();
       return;
     }
@@ -573,11 +618,12 @@ async function loadEveningDeliveryData() {
       const el = document.getElementById(id);
       if (el) el.value = (Number(val) === 0) ? '' : val;
     };
-    setFieldValue('calc-collected-credit', activeMorningRecord.collected_credit);
-    setFieldValue('calc-new-credit', activeMorningRecord.new_credit);
     setFieldValue('calc-fuel', activeMorningRecord.fuel_expense);
     setFieldValue('calc-other-exp', activeMorningRecord.other_expenses);
     setFieldValue('calc-assistance', activeMorningRecord.assistance);
+
+    // جلب عمليات كريدي/تحصيل هذا الموزع لهذا اليوم (إن وجدت) وتعبئة الجدول
+    await loadEveningCreditRows(distName, distDate);
 
     calculateEveningFinal();
 
@@ -627,7 +673,7 @@ function calculateEveningFinal() {
 }
 
 /**
- * 6. حفظ وإقفال جرد المساء
+ * 8. حفظ وإقفال جرد المساء
  */
 async function saveEveningSettlement() {
   if (!activeMorningRecord) {
@@ -688,8 +734,8 @@ async function saveEveningSettlement() {
       }
     }
 
-    // حفظ عمليات كريدي/تحصيل زبائن التجزئة
-    const saveResult = await saveRetailOperations();
+    // حفظ عمليات كريدي/تحصيل زبائن التجزئة بعد التصفية (الصافي لكل زبون)
+    const saveResult = await saveEveningCreditOperations(activeMorningRecord.distributor_name, activeMorningRecord.dist_date);
     if (saveResult.error) {
       showAlert("تحذير: تم إقفال الجرد، لكن فشل حفظ كريدي زبائن التجزئة: " + saveResult.error);
     } else {
@@ -697,6 +743,7 @@ async function saveEveningSettlement() {
     }
 
     switchRetailTab('report');
+    await loadRetailReportTable();
 
   } catch (err) {
     showAlert("خطأ أثناء حفظ الإقفال: " + err.message);
@@ -706,7 +753,7 @@ async function saveEveningSettlement() {
 }
 
 /**
- * 7. تقرير التجزئة
+ * 9. تقرير التجزئة (يضاف له عمودا البنزين والمصاريف/المساعدات بعد عمود الحالة)
  */
 async function loadRetailReportTable() {
   showLoader(true);
@@ -733,6 +780,8 @@ async function loadRetailReportTable() {
         <th style="background: #0284c7; color: white;">التاريخ</th>
         <th style="background: #0284c7; color: white;">الموزع</th>
         <th style="background: #1e293b; color: white;">الحالة</th>
+        <th style="background: #b45309; color: white; min-width: 80px;">البنزين</th>
+        <th style="background: #b45309; color: white; min-width: 100px;">مصاريف/مساعدات</th>
         ${prodHeaders}
         <th style="background: #0f172a; color: white;">المجموع الصافي</th>
       </tr>
@@ -755,6 +804,9 @@ async function loadRetailReportTable() {
         prodCols += `<td style="font-weight: bold; ${qty > 0 ? 'color: #0369a1;' : 'color: #cbd5e1;'}">${qty > 0 ? qty : '-'}</td>`;
       });
 
+      const fuelVal = Number(r.fuel_expense) || 0;
+      const otherAssistVal = (Number(r.other_expenses) || 0) + (Number(r.assistance) || 0);
+
       tbody.innerHTML += `
         <tr>
           <td>${idx + 1}</td>
@@ -765,6 +817,8 @@ async function loadRetailReportTable() {
               ${r.status === 'closed' ? 'مغلق ومباع' : 'خروج صباح'}
             </span>
           </td>
+          <td style="font-weight: bold; color: #b45309;">${fuelVal > 0 ? fuelVal.toLocaleString('fr-FR') : '-'}</td>
+          <td style="font-weight: bold; color: #b45309;">${otherAssistVal > 0 ? otherAssistVal.toLocaleString('fr-FR') : '-'}</td>
           ${prodCols}
           <td style="font-weight: bold; color: #059669;">${(r.final_amount || 0).toLocaleString('fr-FR')} دج</td>
         </tr>
@@ -778,7 +832,7 @@ async function loadRetailReportTable() {
 
     tfoot.innerHTML = `
       <tr style="border-top: 2px solid #0f172a;">
-        <td colspan="4" style="background: #0f172a; color: white; font-weight: bold;">مجموع مبيعات التجزئة التراكمية:</td>
+        <td colspan="6" style="background: #0f172a; color: white; font-weight: bold;">مجموع مبيعات التجزئة التراكمية:</td>
         ${footCols}
         <td style="background: #0f172a;"></td>
       </tr>
