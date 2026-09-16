@@ -66,9 +66,6 @@ async function loadInvoicesTable() {
 }
 
 /**
- * 2. دالة طباعة وصل الطلب (Bon de Commande / Livraison)
- */
-/**
  * 2. دالة طباعة وصل التسليم (تصميم احترافي - A5 على ورق A4)
  */
 async function printOrderReceipt(invoiceNum, customerName) {
@@ -81,7 +78,7 @@ async function printOrderReceipt(invoiceNum, customerName) {
       .eq('invoice_number', invoiceNum)
       .single();
 
-        if (invErr) throw invErr;
+    if (invErr) throw invErr;
 
     // جلب الكريدي القديم من customersCache
     const customer = customersCache.find(c => c.name === invData.customer_name);
@@ -117,7 +114,7 @@ async function printOrderReceipt(invoiceNum, customerName) {
       itemsRowsHtml = `<tr><td colspan="5" style="border: 1px solid #000; padding: 8px; text-align: center;">لا توجد منتجات</td></tr>`;
     }
 
-       // تصميم الوصل HTML
+    // تصميم الوصل HTML
     const receiptHtml = `
       <div class="receipt">
         <!-- الترويسة -->
@@ -219,7 +216,7 @@ async function printOrderReceipt(invoiceNum, customerName) {
         <meta charset="UTF-8">
         <title>وصل تسليم - ${invoiceNum}</title>
         <style>
-                    @page {
+          @page {
             size: A4 landscape;
             margin: 3mm;
           }
@@ -245,7 +242,7 @@ async function printOrderReceipt(invoiceNum, customerName) {
             border: 1px dashed #999;
             page-break-inside: avoid;
           }
-             .receipt-header {
+          .receipt-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -300,7 +297,7 @@ async function printOrderReceipt(invoiceNum, customerName) {
             border-top: 1px dashed #999;
             padding-top: 5px;
           }
-                    @media print {
+          @media print {
             body {
               background: white;
             }
@@ -331,6 +328,7 @@ async function printOrderReceipt(invoiceNum, customerName) {
     showLoader(false);
   }
 }
+
 /**
  * 3. دالة طباعة فاتورة الطريق (Facture - تصميم احترافي)
  */
@@ -663,19 +661,32 @@ function convertToArabicWords(num) {
 
 /**
  * 4. دالة الإغلاق السنوي وتصفية الحسابات (محمية بكلمة سر)
+ *    -- نسخة محدّثة:
+ *       1) تحسب المخزون الحقيقي الحالي لكل منتج (نفس معادلة stock.js)
+ *          وتنقله إلى العمود الثالث (current_stock) ليصبح نقطة بداية
+ *          المخزون للعام الجديد، بدل تركه صفراً أو بدون تحديث.
+ *       2) تحذف جدول invoice_operations بالكامل أيضاً (وليس فقط
+ *          invoices)، لأن الاحتفاظ به كان سيجعل عمود "منتجة/مباعة..."
+ *          يستمر بالتراكم من سنوات سابقة فوق المخزون المنقول حديثاً.
+ *       3) إضافة تأكيد نهائي (confirm) قبل التنفيذ لأن العملية لا رجعة
+ *          فيها إطلاقاً.
  */
 async function closeYearAndCarryOverDebt() {
-  const enteredPass = prompt("عملية حساسة: أدخل كلمة المرور لتأكيد إغلاق السنة ونقل الديون وتفريغ سجل الفواتير:");
-  
+  const enteredPass = prompt("عملية حساسة: أدخل كلمة المرور لتأكيد إغلاق السنة (سيتم حذف كل الفواتير وسجل العمليات، ونقل الديون والمخزون الحالي كنقطة بداية للعام الجديد):");
+
   if (enteredPass === null) return;
-  
+
   if (enteredPass !== SECURITY_CONFIG.yearClosePassword) {
     showAlert("كلمة المرور غير صحيحة! تم إلغاء العملية.");
     return;
   }
 
+  const confirmed = confirm("تحذير أخير: ستُحذف نهائياً جميع الفواتير وجميع عمليات المنتجات (إنتاج/بيع جملة/تالف/هدايا/مسترجع/بيع تجزئة)، وسيُصبح المخزون الحقيقي الحالي هو نقطة البداية للعام الجديد. هذا الإجراء لا يمكن التراجع عنه إطلاقاً. هل أنت متأكد؟");
+  if (!confirmed) return;
+
   showLoader(true);
   try {
+    // 1. حساب الديون النهائية لكل زبون/موزع من جدول الفواتير، ونقلها لبطاقاتهم
     const { data: allInvoices, error: invErr } = await db
       .from('invoices')
       .select('*')
@@ -691,20 +702,62 @@ async function closeYearAndCarryOverDebt() {
     }
 
     for (const cust of customersCache) {
-      const finalDebt = customerFinalDebts.hasOwnProperty(cust.name) 
-        ? customerFinalDebts[cust.name] 
+      const finalDebt = customerFinalDebts.hasOwnProperty(cust.name)
+        ? customerFinalDebts[cust.name]
         : (cust.oldCredit || 0);
 
-      await db.from('customers').update({
+      const { error: custErr } = await db.from('customers').update({
         old_credit: finalDebt,
         last_invoice_seq: 0
       }).eq('id', cust.id);
+      if (custErr) throw custErr;
     }
+
+    // 2. حساب المخزون الحقيقي الحالي لكل منتج (نفس معادلة جدول حالة المخزون في stock.js)
+    const { data: prods, error: pErr } = await db.from('products').select('*');
+    if (pErr) throw pErr;
+
+    const { data: ops, error: opsErr } = await db.from('invoice_operations').select('*');
+    if (opsErr) throw opsErr;
+
+    const opsSummary = {};
+    (ops || []).forEach(op => {
+      const pName = op.product_name;
+      if (!opsSummary[pName]) {
+        opsSummary[pName] = { produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0 };
+      }
+      const qty = Number(op.quantity) || 0;
+      if (op.operation_type === 'سلعة منتجة') {
+        opsSummary[pName].produced += qty;
+      } else if (op.operation_type === 'وصل جديد (توزيع)') {
+        opsSummary[pName].wholesaleSold += qty;
+      } else if (op.operation_type === 'تالفة' || op.operation_type === 'هدايا') {
+        opsSummary[pName].wasteAndGifts += qty;
+      } else if (op.operation_type === 'مسترجعة') {
+        opsSummary[pName].returned += qty;
+      } else if (op.operation_type === 'بيع تجزئة') {
+        opsSummary[pName].retailSold += qty;
+      }
+    });
+
+    // 3. نقل المخزون الحقيقي إلى العمود الثالث (current_stock) كنقطة بداية للعام الجديد
+    for (const p of (prods || [])) {
+      const baseStock = Number(p.current_stock) || 0;
+      const s = opsSummary[p.name] || { produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0 };
+      const realStock = (baseStock + s.produced + s.returned) - (s.wholesaleSold + s.wasteAndGifts + s.retailSold);
+
+      const { error: stockErr } = await db.from('products').update({ current_stock: realStock }).eq('id', p.id);
+      if (stockErr) throw stockErr;
+    }
+
+    // 4. حذف كل سجل العمليات، ثم كل الفواتير، بشكل نهائي
+    const { error: delOpsErr } = await db.from('invoice_operations').delete().neq('id', 0);
+    if (delOpsErr) throw delOpsErr;
 
     const { error: delErr } = await db.from('invoices').delete().neq('id', 0);
     if (delErr) throw delErr;
 
-    showAlert("تم إغلاق السنة بنجاح! تم نقل الديون لبطاقات الزبائن وتفريغ سجل الفواتير للعام الجديد.");
+    showAlert("تم إغلاق السنة بنجاح! المخزون الحقيقي الحالي أصبح نقطة البداية للعام الجديد، ونُقلت الديون لبطاقات الزبائن، وتم تفريغ سجل الفواتير والعمليات بالكامل.");
 
     await preloadData();
     await loadInvoicesTable();
