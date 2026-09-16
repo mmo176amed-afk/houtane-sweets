@@ -68,8 +68,11 @@
           Houtane Sweets - حلويات هتان
         </h2>
       </div>
-      <div>
+      <div style="display: flex; align-items: center; gap: 8px;">
         <span id="user-badge" style="background: var(--success); color: white; padding: 6px 15px; border-radius: 20px; font-size: 14px; margin-left: 10px;"></span>
+        <button class="btn-action" style="background: #c0392b; padding: 6px 12px; font-size: 14px;" onclick="closeYearAndCarryOverDebt()">
+          <i class="fa-solid fa-calendar-check"></i> إغلاق السنة
+        </button>
         <button class="btn-action btn-secondary" style="padding: 6px 12px; font-size: 14px;" onclick="logout()">
           <i class="fa-solid fa-power-off"></i> خروج
         </button>
@@ -148,7 +151,7 @@
           <small id="product-status-msg" style="display: block; margin-top: 5px; font-weight: bold;"></small>
         </div>
         <div class="form-group">
-          <label>الكمية المنتجة / الابتدائية</label>
+          <label id="p-qty-label">الكمية المنتجة / الابتدائية</label>
           <input type="number" id="p-qty" class="form-control" placeholder="0">
         </div>
       </div>
@@ -801,7 +804,7 @@
   </div>
   
   <!-- ======================================================================= -->
-  <!-- [9] واجهة سجل الفواتير والدفعات مع أزرار الطباعة والإغلاق السنوي -->
+  <!-- [9] واجهة سجل الفواتير والدفعات -->
   <!-- ======================================================================= -->
   <div id="view-invoices-table" class="view-section">
     <div class="card">
@@ -812,10 +815,6 @@
           سجل الفواتير والدفعات
         </h3>
         <div>
-          <button class="btn-action" style="background: #c0392b; margin-left: 8px;" onclick="closeYearAndCarryOverDebt()">
-            <i class="fa-solid fa-calendar-check"></i> إغلاق السنة ونقل الكريدي
-          </button>
-          
           <button class="btn-action btn-secondary" onclick="showDashboard()">
             <i class="fa-solid fa-arrow-right"></i> رجوع
           </button>
