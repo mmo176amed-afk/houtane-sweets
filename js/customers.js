@@ -36,7 +36,7 @@ async function submitCustomer() {
 
   showLoader(true);
   try {
-    const { error } = await db.from('customers').insert([{
+       const { error } = await db.from('customers').insert([{
       name: name,
       type: type,
       old_credit: credit,
@@ -46,7 +46,8 @@ async function submitCustomer() {
       nis: nis || null,
       bank_name: bankName || null,
       bank_account: bankAccount || null,
-      address: address || null
+      address: address || null,
+      created_by: currentUser ? currentUser.username : 'unknown'
     }]);
 
     if (error) throw error;
