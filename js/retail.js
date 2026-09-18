@@ -283,7 +283,7 @@ async function saveMorningDelivery() {
           distributor_name: distName,
           items: items,
           status: 'out',
-          created_by: currentUser ? currentUser.username : 'unknown'
+    created_by: currentUser ? currentUser.username : 'unknown'
         }]);
       if (insErr) throw insErr;
     }
