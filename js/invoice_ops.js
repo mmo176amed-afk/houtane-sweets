@@ -472,8 +472,10 @@ async function submitCompleteInvoice() {
         product_name: item.prodName,
         price: item.price,
         quantity: item.qty,
-        operation_date: invoiceDate
+        operation_date: invoiceDate,
+        created_by: currentUser ? currentUser.username : 'unknown'
       }]);
+      
       if (opInsertErr) throw opInsertErr;
       }
 
@@ -484,9 +486,10 @@ async function submitCompleteInvoice() {
       invoice_date: invoiceDate,
       paid_amount: paidAmount,
       debt: newDebt,
-      notes: notes
+      notes: notes,
+      created_by: currentUser ? currentUser.username : 'unknown'
     }]);
-
+    
     if (invErr) throw invErr;
 
     const cust = customersCache.find(c => c.name === customerName);
