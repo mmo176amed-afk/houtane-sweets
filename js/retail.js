@@ -302,16 +302,23 @@ async function saveMorningDelivery() {
 /**
  * 5. جدول السجل التاريخي لكريدي/تحصيل زبائن التجزئة (يبقى في صفحة الصباح)
  * الأعمدة: # / اسم الزبون / التسمية / القيمة / التاريخ / اسم الموزع / الباقي التراكمي
+ * -- نسخة محدّثة (2026):
+ *   - عرض الأحدث أولاً.
+ *   - القيم والرصيد موجبان دائمًا في العرض.
+ *   - إخفاء زبائن التجزئة الذين رصيدهم النهائي = 0 (سددوا بالكامل).
+ *   - إبقاء الزبائن الذين رصيدهم موجب (عليهم كريدي) أو سالب (رصيد دائن).
  */
 async function loadRetailLedgerTable() {
   const tbody = document.getElementById('retail-balance-tbody');
   if (!tbody) return;
+
   try {
     const { data, error } = await db
       .from('retail_credits')
       .select('*')
       .order('operation_date', { ascending: true })
       .order('id', { ascending: true });
+
     if (error) throw error;
 
     if (!data || data.length === 0) {
@@ -319,16 +326,41 @@ async function loadRetailLedgerTable() {
       return;
     }
 
+    // ============ 1. حساب الرصيد النهائي لكل زبون ============
+    const finalBalances = {};
+    data.forEach(op => {
+      const custName = op.customer_name;
+      if (!(custName in finalBalances)) finalBalances[custName] = 0;
+      const isCredit = op.operation_type === 'credit';
+      const amount = Number(op.amount) || 0;
+      finalBalances[custName] += isCredit ? amount : -amount;
+    });
+
+    // ============ 2. تحديد الزبائن الذين يجب عرضهم ============
+    //    - نُبقي من كان رصيده ≠ 0 (موجب أو سالب).
+    //    - نُخفي من كان رصيده = 0.
+    const customersToShow = new Set();
+    Object.keys(finalBalances).forEach(custName => {
+      if (finalBalances[custName] !== 0) {
+        customersToShow.add(custName);
+      }
+    });
+
+    // ============ 3. بناء الجدول مع الحساب التراكمي ============
     const balances = {};
     const rowsHtml = [];
 
     data.forEach((op, idx) => {
       const custName = op.customer_name;
-      if (!(custName in balances)) balances[custName] = 0;
 
+      // حساب الرصيد التراكمي لكل زبون (حتى المخفيين، للحفاظ على التسلسل الصحيح)
+      if (!(custName in balances)) balances[custName] = 0;
       const isCredit = op.operation_type === 'credit';
       const amount = Number(op.amount) || 0;
       balances[custName] += isCredit ? amount : -amount;
+
+      // إخفاء السطر إذا كان الزبون من الذين رصيدهم النهائي = 0
+      if (!customersToShow.has(custName)) return;
 
       const bal = balances[custName];
       const balColor = bal > 0 ? '#c0392b' : (bal < 0 ? '#27ae60' : '#2980b9');
@@ -348,38 +380,16 @@ async function loadRetailLedgerTable() {
       `);
     });
 
-    // عرض الأحدث أولاً مع بقاء الباقي التراكمي محسوباً بالترتيب الزمني الصحيح
+    // ============ 4. عرض الأحدث أولاً ============
+    if (rowsHtml.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="padding: 10px; color: #7c2d12;">لا يوجد زبائن عليهم كريدي حاليًا.</td></tr>';
+      return;
+    }
+
     tbody.innerHTML = rowsHtml.reverse().join('');
 
   } catch (err) {
     console.warn("تعذر جلب سجل كريدي التجزئة:", err.message);
-  }
-}
-
-/**
- * جلب قائمة زبائن التجزئة في الـ datalist (للإكمال التلقائي داخل جدول المساء)
- */
-async function fillRetailCustomersDatalist() {
-  try {
-    const { data: custs, error } = await db
-      .from('customers')
-      .select('name')
-      .eq('type', 'detail')
-      .order('name');
-
-    if (error) throw error;
-
-    const datalist = document.getElementById('retail-customers-list-main');
-    if (!datalist) return;
-
-    datalist.innerHTML = '';
-    (custs || []).forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.name;
-      datalist.appendChild(opt);
-    });
-  } catch (err) {
-    console.warn("تحذير: لم يتم جلب زبائن التجزئة:", err.message);
   }
 }
 
