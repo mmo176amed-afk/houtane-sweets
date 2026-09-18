@@ -282,7 +282,7 @@ async function saveMorningDelivery() {
           dist_date: distDate,
           distributor_name: distName,
           items: items,
-          status: 'out'
+          status: 'out',
           created_by: currentUser ? currentUser.username : 'unknown'
         }]);
       if (insErr) throw insErr;
