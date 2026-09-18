@@ -340,7 +340,7 @@ async function loadRetailLedgerTable() {
           <td style="padding: 6px; border: 1px solid #fb923c;">${idx + 1}</td>
           <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold; text-align: right; padding-right: 12px;">${custName}</td>
           <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold; color: ${labelColor};">${label}</td>
-          <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold;" dir="ltr">${amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold;" dir="ltr">${Math.abs(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           <td style="padding: 6px; border: 1px solid #fb923c;">${op.operation_date}</td>
           <td style="padding: 6px; border: 1px solid #fb923c;">${op.distributor_name || ''}</td>
           <td style="padding: 6px; border: 1px solid #fb923c; font-weight: bold; color: ${balColor};" dir="ltr">${bal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
