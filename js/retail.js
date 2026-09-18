@@ -854,3 +854,30 @@ async function loadRetailReportTable() {
     showLoader(false);
   }
 }
+
+/**
+ * 10. جلب قائمة زبائن التجزئة في الـ datalist (للإكمال التلقائي داخل جدول المساء)
+ */
+async function fillRetailCustomersDatalist() {
+  try {
+    const { data: custs, error } = await db
+      .from('customers')
+      .select('name')
+      .eq('type', 'detail')
+      .order('name');
+
+    if (error) throw error;
+
+    const datalist = document.getElementById('retail-customers-list-main');
+    if (!datalist) return;
+
+    datalist.innerHTML = '';
+    (custs || []).forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.name;
+      datalist.appendChild(opt);
+    });
+  } catch (err) {
+    console.warn("تحذير: لم يتم جلب زبائن التجزئة:", err.message);
+  }
+}
