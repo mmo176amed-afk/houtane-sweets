@@ -249,19 +249,25 @@ async function loadUsersTable() {
       const isMainAdmin = u.username === 'admin';
       const createdAt = u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '-';
 
-      // منع حذف أو تعديل المستخدم "admin" الرئيسي
-      const actionsHtml = isMainAdmin
-        ? '<span style="color: #7f8c8d; font-size: 12px; font-style: italic;">حساب رئيسي (محمي)</span>'
+         // زر تعديل كلمة المرور (متاح للجميع)
+      const editBtn = `
+        <button class="btn-action" style="background: #f39c12; padding: 4px 8px; font-size: 12px; margin-left: 4px;" 
+          onclick="editUserPassword(${u.id}, '${u.username.replace(/'/g, "\\'")}')" title="تعديل كلمة المرور">
+          <i class="fa-solid fa-key"></i> تعديل
+        </button>
+      `;
+
+      // زر الحذف (ممنوع للمستخدم الرئيسي admin)
+      const deleteBtn = isMainAdmin
+        ? ''
         : `
-            <button class="btn-action" style="background: #f39c12; padding: 4px 8px; font-size: 12px; margin-left: 4px;" 
-              onclick="editUserPassword(${u.id}, '${u.username.replace(/'/g, "\\'")}')" title="تعديل كلمة المرور">
-              <i class="fa-solid fa-key"></i> تعديل
-            </button>
             <button class="btn-action" style="background: #e74c3c; padding: 4px 8px; font-size: 12px;" 
               onclick="deleteUser(${u.id}, '${u.username.replace(/'/g, "\\'")}')" title="حذف المستخدم">
               <i class="fa-solid fa-trash"></i> حذف
             </button>
           `;
+
+      const actionsHtml = editBtn + deleteBtn;
 
       tbody.innerHTML += `
         <tr>
