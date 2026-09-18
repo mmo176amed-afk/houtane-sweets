@@ -661,15 +661,12 @@ function convertToArabicWords(num) {
 
 /**
  * 4. دالة الإغلاق السنوي وتصفية الحسابات (محمية بكلمة سر)
- *    -- نسخة محدّثة:
- *       1) تحسب المخزون الحقيقي الحالي لكل منتج (نفس معادلة stock.js)
- *          وتنقله إلى العمود الثالث (current_stock) ليصبح نقطة بداية
- *          المخزون للعام الجديد، بدل تركه صفراً أو بدون تحديث.
- *       2) تحذف جدول invoice_operations بالكامل أيضاً (وليس فقط
- *          invoices)، لأن الاحتفاظ به كان سيجعل عمود "منتجة/مباعة..."
- *          يستمر بالتراكم من سنوات سابقة فوق المخزون المنقول حديثاً.
- *       3) إضافة تأكيد نهائي (confirm) قبل التنفيذ لأن العملية لا رجعة
- *          فيها إطلاقاً.
+ *    -- نسخة محدّثة (2026):
+ *       1) تحسب المخزون الحقيقي الحالي لكل منتج وتنقله إلى current_stock.
+ *       2) تجمع كريدي زبائن التجزئة على الموزع (من retail_credits).
+ *       3) تنقل ديون زبائن الجملة إلى old_credit.
+ *       4) تصفّر last_invoice_seq للجميع.
+ *       5) تحذف invoices و invoice_operations فقط.
  */
 async function closeYearAndCarryOverDebt() {
   const enteredPass = prompt("عملية حساسة: أدخل كلمة المرور لتأكيد إغلاق السنة (سيتم حذف كل الفواتير وسجل العمليات، ونقل الديون والمخزون الحالي كنقطة بداية للعام الجديد):");
@@ -681,39 +678,105 @@ async function closeYearAndCarryOverDebt() {
     return;
   }
 
-  const confirmed = confirm("تحذير أخير: ستُحذف نهائياً جميع الفواتير وجميع عمليات المنتجات (إنتاج/بيع جملة/تالف/هدايا/مسترجع/بيع تجزئة)، وسيُصبح المخزون الحقيقي الحالي هو نقطة البداية للعام الجديد. هذا الإجراء لا يمكن التراجع عنه إطلاقاً. هل أنت متأكد؟");
+  const confirmed = confirm("تحذير أخير: ستُحذف نهائياً جميع الفواتير وجميع عمليات المنتجات، وسيُصبح المخزون الحقيقي الحالي هو نقطة البداية للعام الجديد، وستُنقل ديون زبائن الجملة إلى بطاقاتهم، وسيُجمع كريدي زبائن التجزئة على الموزع. هذا الإجراء لا يمكن التراجع عنه إطلاقاً. هل أنت متأكد؟");
   if (!confirmed) return;
 
   showLoader(true);
   try {
-    // 1. حساب الديون النهائية لكل زبون/موزع من جدول الفواتير، ونقلها لبطاقاتهم
+    // ============ 1. جلب البيانات اللازمة ============
     const { data: allInvoices, error: invErr } = await db
       .from('invoices')
       .select('*')
       .order('id', { ascending: true });
-
     if (invErr) throw invErr;
 
-    const customerFinalDebts = {};
-    if (allInvoices && allInvoices.length > 0) {
-      allInvoices.forEach(inv => {
-        customerFinalDebts[inv.customer_name] = Number(inv.debt) || 0;
-      });
-    }
+    const { data: retailCredits, error: rcErr } = await db
+      .from('retail_credits')
+      .select('*');
+    if (rcErr) throw rcErr;
 
-    for (const cust of customersCache) {
-      const finalDebt = customerFinalDebts.hasOwnProperty(cust.name)
-        ? customerFinalDebts[cust.name]
-        : (cust.oldCredit || 0);
+    const { data: allCustomers, error: custErr } = await db
+      .from('customers')
+      .select('*');
+    if (custErr) throw custErr;
 
-      const { error: custErr } = await db.from('customers').update({
+    // ============ 2. حساب الديون النهائية ============
+    // 2-أ. ديون زبائن الجملة من جدول invoices
+    const wholesaleFinalDebts = {};
+    (allInvoices || []).forEach(inv => {
+      wholesaleFinalDebts[inv.customer_name] = Number(inv.debt) || 0;
+    });
+
+    // 2-ب. تجميع كريدي زبائن التجزئة على الموزع من retail_credits
+    // credit = دين على الزبون (يُجمع)
+    // collection = تحصيل (يُطرح)
+    const distributorFinalDebts = {};
+    (retailCredits || []).forEach(rc => {
+      const distName = rc.distributor_name;
+      if (!distName) return;
+      if (!distributorFinalDebts[distName]) {
+        distributorFinalDebts[distName] = 0;
+      }
+      const amount = Number(rc.amount) || 0;
+      if (rc.operation_type === 'credit') {
+        distributorFinalDebts[distName] += amount;
+      } else if (rc.operation_type === 'collection') {
+        distributorFinalDebts[distName] -= amount;
+      }
+    });
+
+    // ============ 3. تحديث بطاقات الزبائن ============
+    for (const cust of (allCustomers || [])) {
+      let finalDebt = 0;
+
+      if (cust.type === 'detail') {
+        // زبون تجزئة: لا يُنقل دينه إلى بطاقته، يبقى صفرًا
+        // (دينه سيُجمع على الموزع)
+        finalDebt = 0;
+      } else if (cust.type === 'gros' || cust.type === 'distributor') {
+        // زبون جملة أو موزع: يُنقل دينه من invoices
+        finalDebt = wholesaleFinalDebts.hasOwnProperty(cust.name)
+          ? wholesaleFinalDebts[cust.name]
+          : (cust.old_credit || 0);
+      } else {
+        // نوع آخر: يبقى كما هو
+        finalDebt = cust.old_credit || 0;
+      }
+
+      const { error: updErr } = await db.from('customers').update({
         old_credit: finalDebt,
         last_invoice_seq: 0
       }).eq('id', cust.id);
-      if (custErr) throw custErr;
+      if (updErr) throw updErr;
     }
 
-    // 2. حساب المخزون الحقيقي الحالي لكل منتج (نفس معادلة جدول حالة المخزون في stock.js)
+    // 3-ب. تحديث الموزعين الذين لديهم كريدي تجزئة مجمّع
+    // (حتى لو لم يكونوا مسجلين كزبائن، نضيفهم أو نحدّثهم)
+    for (const distName of Object.keys(distributorFinalDebts)) {
+      const existingCust = (allCustomers || []).find(c => c.name === distName);
+      const aggregatedCredit = distributorFinalDebts[distName];
+
+      if (existingCust) {
+        // موجود: نضيف الكريدي المجمّع إلى old_credit الحالي
+        const newOldCredit = (Number(existingCust.old_credit) || 0) + aggregatedCredit;
+        const { error: updErr } = await db.from('customers').update({
+          old_credit: newOldCredit,
+          last_invoice_seq: 0
+        }).eq('id', existingCust.id);
+        if (updErr) throw updErr;
+      } else {
+        // غير موجود: ننشئه كموزع تجزئة
+        const { error: insErr } = await db.from('customers').insert([{
+          name: distName,
+          type: 'distributor',
+          old_credit: aggregatedCredit,
+          last_invoice_seq: 0
+        }]);
+        if (insErr) throw insErr;
+      }
+    }
+
+    // ============ 4. نقل المخزون الحقيقي إلى current_stock ============
     const { data: prods, error: pErr } = await db.from('products').select('*');
     if (pErr) throw pErr;
 
@@ -740,7 +803,6 @@ async function closeYearAndCarryOverDebt() {
       }
     });
 
-    // 3. نقل المخزون الحقيقي إلى العمود الثالث (current_stock) كنقطة بداية للعام الجديد
     for (const p of (prods || [])) {
       const baseStock = Number(p.current_stock) || 0;
       const s = opsSummary[p.name] || { produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0 };
@@ -750,20 +812,23 @@ async function closeYearAndCarryOverDebt() {
       if (stockErr) throw stockErr;
     }
 
-    // 4. حذف كل سجل العمليات، ثم كل الفواتير، بشكل نهائي
+    // ============ 5. حذف الفواتير والعمليات ============
     const { error: delOpsErr } = await db.from('invoice_operations').delete().neq('id', 0);
     if (delOpsErr) throw delOpsErr;
 
     const { error: delErr } = await db.from('invoices').delete().neq('id', 0);
     if (delErr) throw delErr;
 
-    showAlert("تم إغلاق السنة بنجاح! المخزون الحقيقي الحالي أصبح نقطة البداية للعام الجديد، ونُقلت الديون لبطاقات الزبائن، وتم تفريغ سجل الفواتير والعمليات بالكامل.");
+    // ملاحظة: لا نحذف customers ولا retail_credits ولا retail_distributions
+
+    showAlert("تم إغلاق السنة بنجاح! المخزون الحقيقي أصبح نقطة البداية للعام الجديد، ونُقلت ديون زبائن الجملة إلى بطاقاتهم، وجُمع كريدي زبائن التجزئة على الموزعين، وتم تفريغ سجل الفواتير والعمليات بالكامل.");
 
     await preloadData();
     await loadInvoicesTable();
 
   } catch (err) {
     showAlert("حدث خطأ أثناء إغلاق السنة: " + err.message);
+    console.error(err);
   } finally {
     showLoader(false);
   }
