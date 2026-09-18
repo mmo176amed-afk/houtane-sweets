@@ -2,10 +2,15 @@
  * =========================================================================
  * [الفقرة 2] نظام تسجيل الدخول والخروج وجلب البيانات الأولية (auth.js)
  * =========================================================================
+ * -- نسخة محدّثة (2026):
+ *   1) handleLogin() يتحقق من جدول users في Supabase.
+ *   2) يخزّن currentUser = { id, username, role }.
+ *   3) يضيف دوال: logout()، checkUserRole()، requireLogin().
+ *   4) preloadData() كما هو (لم يُمس).
  */
 
 /**
- * معالجة تسجيل الدخول والتحقق من الصلاحيات
+ * 1. معالجة تسجيل الدخول والتحقق من الصلاحيات
  */
 async function handleLogin() {
   const user = document.getElementById('login-user').value.trim();
@@ -16,31 +21,102 @@ async function handleLogin() {
     return;
   }
 
-  if (user === 'admin' && pass === '1234') {
-    currentUser = { user: 'admin', role: 'Admin' };
-    
+  showLoader(true);
+
+  try {
+    // البحث عن المستخدم في جدول users
+    const { data: foundUser, error } = await db
+      .from('users')
+      .select('*')
+      .eq('username', user)
+      .eq('password', pass)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!foundUser) {
+      showAlert("اسم المستخدم أو كلمة المرور غير صحيحة!");
+      return;
+    }
+
+    // تخزين بيانات المستخدم في المتغير العام
+    currentUser = {
+      id: foundUser.id,
+      username: foundUser.username,
+      role: foundUser.role
+    };
+
+    // تحديث شارة المستخدم في الواجهة
     const badge = document.getElementById('user-badge');
-    if (badge) badge.innerText = `${currentUser.user} (${currentUser.role})`;
-    
+    if (badge) {
+      badge.innerText = `${currentUser.username} (${currentUser.role})`;
+    }
+
+    // إظهار لوحة التحكم
     showView('view-dashboard');
+
+    // تحميل البيانات الأولية
     await preloadData();
-  } else {
-    showAlert("اسم المستخدم أو كلمة المرور غير صحيحة!");
+
+  } catch (err) {
+    showAlert("حدث خطأ أثناء تسجيل الدخول: " + err.message);
+    console.error(err);
+  } finally {
+    showLoader(false);
   }
 }
 
 /**
- * تسجيل الخروج وإعادة تعيين الحقول إلى الشاشة الافتتاحية
+ * 2. تسجيل الخروج وإعادة تعيين الحقول إلى الشاشة الافتتاحية
  */
 function logout() {
+  const confirmLogout = confirm("هل أنت متأكد من تسجيل الخروج؟");
+  if (!confirmLogout) return;
+
   currentUser = null;
-  document.getElementById('login-user').value = '';
-  document.getElementById('login-pass').value = '';
+
+  const userInput = document.getElementById('login-user');
+  const passInput = document.getElementById('login-pass');
+  if (userInput) userInput.value = '';
+  if (passInput) passInput.value = '';
+
   showView('view-login');
 }
 
 /**
- * جلب المنتجات والزبائن إلى الذاكرة المؤقتة للتطبيق
+ * 3. التحقق من صلاحيات المستخدم
+ * @param {string} requiredRole - 'admin' أو 'user'
+ * @returns {boolean}
+ */
+function checkUserRole(requiredRole = 'admin') {
+  if (!currentUser) {
+    showAlert("يجب تسجيل الدخول أولاً!");
+    return false;
+  }
+
+  if (requiredRole === 'admin' && currentUser.role !== 'admin') {
+    showAlert("هذه العملية تتطلب صلاحيات المدير!");
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * 4. التحقق من أن المستخدم مسجل الدخول
+ */
+function requireLogin() {
+  if (!currentUser) {
+    showAlert("يجب تسجيل الدخول أولاً!");
+    showView('view-login');
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 5. جلب المنتجات والزبائن إلى الذاكرة المؤقتة للتطبيق
+ * (لم يُمس - نفس النسخة القديمة)
  */
 async function preloadData() {
   showLoader(true);
