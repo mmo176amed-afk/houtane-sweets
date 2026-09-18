@@ -128,7 +128,12 @@
         <i class="fa-solid fa-truck-moving"></i>
         السلعة الخارجة (فواتير الجملة)
       </button>
-    </div>
+      <!-- 9. زر إدارة المستخدمين (للمدير فقط) -->
+      <button class="app-btn" style="background: #475569; color: white;" onclick="openUsersManagementView()">
+        <i class="fa-solid fa-users-gear"></i>
+        إدارة المستخدمين
+     </button>
+   </div>
   </div>
 
   <!-- ======================================================================= -->
@@ -879,6 +884,78 @@
     </div>
   </div>
 
+    <!-- ============================================================= -->
+  <!-- [11] واجهة إدارة المستخدمين (Users Management View) -->
+  <!-- ============================================================= -->
+  <div id="view-users-management" class="view-section">
+    <div class="card" style="max-width: 900px; margin: 0 auto;">
+
+      <!-- شريط العنوان والعودة -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3>
+          <i class="fa-solid fa-users-gear" style="color: #475569;"></i>
+          إدارة المستخدمين والصلاحيات
+        </h3>
+        <button class="btn-action btn-secondary" onclick="showDashboard()">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <!-- نموذج إضافة مستخدم جديد -->
+      <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #0369a1; margin-bottom: 12px;">
+          <i class="fa-solid fa-user-plus"></i> إضافة مستخدم جديد
+        </h4>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>اسم المستخدم:</label>
+            <input type="text" id="new-user-name" class="form-control" placeholder="أدخل اسم المستخدم...">
+          </div>
+          <div class="form-group">
+            <label>كلمة المرور:</label>
+            <input type="text" id="new-user-pass" class="form-control" placeholder="أدخل كلمة المرور...">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>الصلاحية:</label>
+            <select id="new-user-role" class="form-control" style="font-weight: bold;">
+              <option value="user">مستخدم عادي (User)</option>
+              <option value="admin">مدير (Admin)</option>
+            </select>
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <button class="btn-action" style="background: var(--success); width: 100%;" onclick="submitNewUser()">
+              <i class="fa-solid fa-save"></i> تسجيل المستخدم
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- جدول المستخدمين الحاليين -->
+      <h4 style="color: #2c3e50; margin-bottom: 12px;">
+        <i class="fa-solid fa-list"></i> قائمة المستخدمين
+      </h4>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>اسم المستخدم</th>
+              <th>كلمة المرور</th>
+              <th>الصلاحية</th>
+              <th>تاريخ الإنشاء</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
 </div> <!-- إغلاق container الصحيح لجميع الأقسام -->
 
 <!-- استدعاء مكتبة Supabase وملفات الجافاسكريبت -->
