@@ -133,6 +133,11 @@
         <i class="fa-solid fa-users-gear"></i>
         إدارة المستخدمين
      </button>
+      <!-- 10. زر سجل العمليات -->
+    <button class="app-btn" style="background: #7c3aed; color: white;" onclick="openOperationsLogView()">
+  <i class="fa-solid fa-clipboard-list"></i>
+  سجل العمليات
+   </button>
    </div>
   </div>
 
@@ -952,6 +957,112 @@
           </thead>
           <tbody id="users-tbody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+    <!-- ============================================================= -->
+  <!-- [12] واجهة سجل العمليات (Operations Log View) -->
+  <!-- ============================================================= -->
+  <div id="view-operations-log" class="view-section">
+    <div class="card" style="max-width: 98%; margin: 0 auto;">
+
+      <!-- شريط العنوان والرجوع -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+        <h3>
+          <i class="fa-solid fa-clipboard-list" style="color: #7c3aed;"></i>
+          سجل العمليات
+        </h3>
+        <button class="btn-action btn-secondary" onclick="showDashboard()">
+          <i class="fa-solid fa-arrow-right"></i> رجوع
+        </button>
+      </div>
+
+      <!-- أزرار التبويبات الستة -->
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; padding: 10px; background: #f8fafc; border-radius: 8px;">
+        <button id="btn-log-produced" class="btn-action" style="background: #0284c7;" onclick="switchOperationsTab('produced')">
+          <i class="fa-solid fa-cookie"></i> السلعة المنتجة
+        </button>
+        <button id="btn-log-wholesale" class="btn-action" style="background: #27ae60;" onclick="switchOperationsTab('wholesale')">
+          <i class="fa-solid fa-truck-moving"></i> المباعة (جملة)
+        </button>
+        <button id="btn-log-retail" class="btn-action" style="background: #8e44ad;" onclick="switchOperationsTab('retail')">
+          <i class="fa-solid fa-store"></i> المباعة (تجزئة)
+        </button>
+        <button id="btn-log-waste" class="btn-action" style="background: #c0392b;" onclick="switchOperationsTab('waste')">
+          <i class="fa-solid fa-trash-can"></i> التالفة
+        </button>
+        <button id="btn-log-returned" class="btn-action" style="background: #3498db;" onclick="switchOperationsTab('returned')">
+          <i class="fa-solid fa-rotate-left"></i> المرجعة
+        </button>
+        <button id="btn-log-gifts" class="btn-action" style="background: #e67e22;" onclick="switchOperationsTab('gifts')">
+          <i class="fa-solid fa-gift"></i> الهدايا
+        </button>
+      </div>
+
+      <!-- [1] جدول السلعة المنتجة -->
+      <div id="log-sec-produced">
+        <div class="table-container" style="overflow-x: auto; max-height: 70vh;">
+          <table style="min-width: 1000px; text-align: center; border-collapse: collapse;">
+            <thead id="log-produced-thead"></thead>
+            <tbody id="log-produced-tbody"></tbody>
+            <tfoot id="log-produced-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- [2] جدول المباعة (جملة) -->
+      <div id="log-sec-wholesale" style="display: none;">
+        <div class="table-container" style="overflow-x: auto; max-height: 70vh;">
+          <table style="min-width: 1000px; text-align: center; border-collapse: collapse;">
+            <thead id="log-wholesale-thead"></thead>
+            <tbody id="log-wholesale-tbody"></tbody>
+            <tfoot id="log-wholesale-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- [3] جدول المباعة (تجزئة) -->
+      <div id="log-sec-retail" style="display: none;">
+        <div class="table-container" style="overflow-x: auto; max-height: 70vh;">
+          <table style="min-width: 1000px; text-align: center; border-collapse: collapse;">
+            <thead id="log-retail-thead"></thead>
+            <tbody id="log-retail-tbody"></tbody>
+            <tfoot id="log-retail-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- [4] جدول التالفة -->
+      <div id="log-sec-waste" style="display: none;">
+        <div class="table-container" style="overflow-x: auto; max-height: 70vh;">
+          <table style="min-width: 1000px; text-align: center; border-collapse: collapse;">
+            <thead id="log-waste-thead"></thead>
+            <tbody id="log-waste-tbody"></tbody>
+            <tfoot id="log-waste-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- [5] جدول المرجعة -->
+      <div id="log-sec-returned" style="display: none;">
+        <div class="table-container" style="overflow-x: auto; max-height: 70vh;">
+          <table style="min-width: 1000px; text-align: center; border-collapse: collapse;">
+            <thead id="log-returned-thead"></thead>
+            <tbody id="log-returned-tbody"></tbody>
+            <tfoot id="log-returned-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- [6] جدول الهدايا -->
+      <div id="log-sec-gifts" style="display: none;">
+        <div class="table-container" style="overflow-x: auto; max-height: 70vh;">
+          <table style="min-width: 1000px; text-align: center; border-collapse: collapse;">
+            <thead id="log-gifts-thead"></thead>
+            <tbody id="log-gifts-tbody"></tbody>
+            <tfoot id="log-gifts-tfoot"></tfoot>
+          </table>
+        </div>
       </div>
 
     </div>
