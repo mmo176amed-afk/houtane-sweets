@@ -685,7 +685,21 @@ async function closeYearAndCarryOverDebt() {
   const confirmed = confirm("تحذير أخير: ستُحذف نهائياً جميع الفواتير وجميع عمليات المنتجات، وسيُصبح المخزون الحقيقي الحالي هو نقطة البداية للعام الجديد، وستُنقل ديون زبائن الجملة إلى بطاقاتهم، وسيُجمع كريدي زبائن التجزئة على الموزع. هذا الإجراء لا يمكن التراجع عنه إطلاقاً. هل أنت متأكد؟");
   if (!confirmed) return;
 
+  // ✅ تصدير الأرشيف قبل الحذف
   showLoader(true);
+  const exportSuccess = await exportYearArchiveToExcel(new Date().getFullYear());
+  showLoader(false);
+  
+  if (!exportSuccess) {
+    const proceedWithoutExport = confirm("فشل تصدير الأرشيف! هل تريد المتابعة إلى الحذف على أي حال؟\n\n(تحذير: لن يكون هناك نسخة احتياطية)");
+    if (!proceedWithoutExport) {
+      showAlert("تم إلغاء عملية إغلاق السنة.");
+      return;
+    }
+  }
+
+  showLoader(true);
+  
   try {
     // ============ 1. جلب البيانات اللازمة ============
     const { data: allInvoices, error: invErr } = await db
@@ -822,6 +836,14 @@ async function closeYearAndCarryOverDebt() {
 
     const { error: delErr } = await db.from('invoices').delete().neq('id', 0);
     if (delErr) throw delErr;
+
+        // ✅ حذف توزيعات التجزئة
+    const { error: delDistErr } = await db.from('retail_distributions').delete().neq('id', 0);
+    if (delDistErr) throw delDistErr;
+
+    // ✅ حذف كريدي التجزئة
+    const { error: delCreditsErr } = await db.from('retail_credits').delete().neq('id', 0);
+    if (delCreditsErr) throw delCreditsErr;
 
     // ملاحظة: لا نحذف customers ولا retail_credits ولا retail_distributions
 
