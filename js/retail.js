@@ -277,15 +277,15 @@ async function saveMorningDelivery() {
       if (updErr) throw updErr;
     } else {
       const { error: insErr } = await db
-        .from('retail_distributions')
-        .insert([{
-          dist_date: distDate,
-          distributor_name: distName,
-          items: items,
-          status: 'out',
+  .from('retail_distributions')
+  .insert([{
+    dist_date: distDate,
+    distributor_name: distName,
+    items: items,
+    status: 'out',
     created_by: currentUser ? currentUser.username : 'unknown'
-        }]);
-      if (insErr) throw insErr;
+  }]);
+if (insErr) throw insErr;
     }
 
     showAlert("تم تثبيت خروج السلعة بنجاح!");
@@ -528,14 +528,15 @@ async function saveEveningCreditOperations(distName, distDate) {
     const net = collectVal - creditVal;
     if (net === 0) return; // لا فرق صافي، لا داعي لتسجيل عملية
 
-    netOps.push({
-      customer_name: custName,
-      operation_date: distDate,
-      operation_type: net > 0 ? 'collection' : 'credit',
-      amount: Math.abs(net),
-      distributor_name: distName,
-      notes: notes || null
-    });
+  netOps.push({
+  customer_name: custName,
+  operation_date: distDate,
+  operation_type: net > 0 ? 'collection' : 'credit',
+  amount: Math.abs(net),
+  distributor_name: distName,
+  notes: notes || null,
+  created_by: currentUser ? currentUser.username : 'unknown'
+  });  
   });
 
   if (netOps.length === 0) return { saved: 0, error: null };
@@ -729,16 +730,16 @@ async function saveEveningSettlement() {
 
     if (!alreadyClosed) {
       const retailReceiptNumber = `TJZ-${activeMorningRecord.dist_date}-${activeMorningRecord.id}`;
-      const opsToInsert = updatedItems.filter(item => item.sold_qty > 0).map(item => ({
-        customer_name: activeMorningRecord.distributor_name,
-        receipt_number: retailReceiptNumber,
-        operation_type: 'بيع تجزئة',
-        product_name: item.product_name,
-        price: item.retail_price,
-        quantity: item.sold_qty,
-        operation_date: activeMorningRecord.dist_date
-      }));
-
+     const opsToInsert = updatedItems.filter(item => item.sold_qty > 0).map(item => ({
+  customer_name: activeMorningRecord.distributor_name,
+  receipt_number: retailReceiptNumber,
+  operation_type: 'بيع تجزئة',
+  product_name: item.product_name,
+  price: item.retail_price,
+  quantity: item.sold_qty,
+  operation_date: activeMorningRecord.dist_date,
+  created_by: currentUser ? currentUser.username : 'unknown'
+}));
       if (opsToInsert.length > 0) {
         const { error: opsError } = await db.from('invoice_operations').insert(opsToInsert);
         if (opsError) throw opsError;
