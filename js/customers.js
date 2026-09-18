@@ -223,6 +223,7 @@ async function loadCustomersTable() {
     showLoader(false);
   }
 }
+
 /**
  * فتح النافذة المنبثقة لتعديل معلومات الزبون
  */
