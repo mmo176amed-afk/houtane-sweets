@@ -93,7 +93,8 @@ async function submitProduct() {
           product_name: existing.name,
           price: wholesale,
           quantity: qty,
-          operation_date: new Date().toISOString().split('T')[0]
+          operation_date: new Date().toISOString().split('T')[0],   
+          created_by: currentUser ? currentUser.username : 'unknown'
         }]);
         if (opErr) throw opErr;
       }
