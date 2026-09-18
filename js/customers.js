@@ -10,6 +10,9 @@ let currentEditCustomerId = null;
  * تسجيل زبون أو موزع جديد مع كل المعلومات
  */
 async function submitCustomer() {
+   if (!checkUserRole('admin')) {
+    return;
+  }
   const name = document.getElementById('c-name').value.trim();
   const type = document.getElementById('c-type').value;
   const credit = Number(document.getElementById('c-credit').value) || 0;
@@ -183,20 +186,35 @@ async function loadCustomersTable() {
       const typeLabel = typeLabels[c.type] || 'غير محدد';
       const typeColor = c.type === 'gros' ? '#2980b9' : (c.type === 'distributor' ? '#8e44ad' : '#e67e22');
 
-      // أزرار الإجراءات: تُخفى للسطر المجمّع (ليس له id في customers)
-      const actionsHtml = c.isAggregate
-        ? '<span style="color: #7f8c8d; font-size: 12px; font-style: italic;">مجموع تلقائي من زبائن التجزئة</span>'
-        : `
-            <button class="btn-action" style="background: #2980b9; padding: 5px 10px; font-size: 12px; margin-left: 3px;" 
-              onclick="openCustomerModal(${c.id})" title="عرض / تعديل المعلومات">
-              <i class="fa-solid fa-eye"></i> عرض / تعديل
-            </button>
-            <button class="btn-action" style="background: #c0392b; padding: 5px 10px; font-size: 12px;" 
-              onclick="deleteCustomer(${c.id}, '${c.name.replace(/'/g, "\\'")}')" title="حذف الزبون">
-              <i class="fa-solid fa-trash"></i> حذف
-            </button>
-          `;
+      // أزرار الإجراءات: تُخفى للسطر المجمّع وللمستخدم غير المدير
+      const isAdmin = currentUser && currentUser.role === 'admin';
 
+      let actionsHtml = '';
+      if (c.isAggregate) {
+        // السطر المجمّع (الموزع) → لا أزرار
+        actionsHtml = '<span style="color: #7f8c8d; font-size: 12px; font-style: italic;">مجموع تلقائي من زبائن التجزئة</span>';
+      } else if (isAdmin) {
+        // المدير → عرض الأزرار
+        actionsHtml = `
+          <button class="btn-action" style="background: #2980b9; padding: 5px 10px; font-size: 12px; margin-left: 3px;" 
+            onclick="openCustomerModal(${c.id})" title="عرض / تعديل المعلومات">
+            <i class="fa-solid fa-eye"></i> عرض / تعديل
+          </button>
+          <button class="btn-action" style="background: #c0392b; padding: 5px 10px; font-size: 12px;" 
+            onclick="deleteCustomer(${c.id}, '${c.name.replace(/'/g, "\\'")}')" title="حذف الزبون">
+            <i class="fa-solid fa-trash"></i> حذف
+          </button>
+        `;
+      } else {
+        // المستخدم العادي → زر عرض فقط (بدون تعديل ولا حذف)
+        actionsHtml = `
+          <button class="btn-action" style="background: #7f8c8d; padding: 5px 10px; font-size: 12px;" 
+            onclick="openCustomerModal(${c.id})" title="عرض المعلومات فقط">
+            <i class="fa-solid fa-eye"></i> عرض فقط
+          </button>
+        `;
+      }
+      
       tbody.innerHTML += `
         <tr>
           <td style="font-weight: bold;">${idx + 1}</td>
@@ -277,6 +295,9 @@ function closeCustomerModal() {
  * حفظ تعديلات معلومات الزبون
  */
 async function saveCustomerInfo() {
+   if (!checkUserRole('admin')) {
+    return;
+  }
   if (!currentEditCustomerId) return;
 
   const rc = document.getElementById('modal-c-rc').value.trim();
@@ -320,6 +341,9 @@ async function saveCustomerInfo() {
  * حذف زبون
  */
 async function deleteCustomer(custId, custName) {
+  if (!checkUserRole('admin')) {
+    return;
+  }
   const confirmDelete = confirm(`هل أنت متأكد من حذف الزبون "${custName}"؟\n\nتحذير: هذا الإجراء لا يمكن التراجع عنه!`);
   
   if (!confirmDelete) return;
