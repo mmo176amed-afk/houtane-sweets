@@ -660,13 +660,51 @@ function convertToArabicWords(num) {
 }
 
 /**
+ * دالة مساعدة داخلية: تحذف كل صفوف جدول معيّن، وتتحقق فعلياً من أن الحذف
+ * نجح (باستخدام select() على استعلام الحذف لمعرفة عدد الصفوف المحذوفة فعلياً).
+ * إن كان عدد الصفوف المحذوفة صفراً بينما الجدول لم يكن فارغاً، فهذا يعني
+ * غالباً أن صلاحيات RLS في Supabase تمنع الحذف بصمت دون أي رسالة خطأ.
+ */
+async function deleteAllRowsAndVerify(tableName) {
+  // نتحقق أولاً هل الجدول يحتوي على صفوف أصلاً
+  const { count: beforeCount, error: countErr } = await db
+    .from(tableName)
+    .select('*', { count: 'exact', head: true });
+
+  if (countErr) throw countErr;
+
+  if (!beforeCount || beforeCount === 0) {
+    return { table: tableName, before: 0, deleted: 0, ok: true };
+  }
+
+  // الحذف مع طلب استرجاع الصفوف المحذوفة فعلياً للتحقق من نجاح العملية
+  const { data: deletedRows, error: delErr } = await db
+    .from(tableName)
+    .delete()
+    .neq('id', 0)
+    .select('id');
+
+  if (delErr) throw delErr;
+
+  const deletedCount = (deletedRows || []).length;
+
+  return {
+    table: tableName,
+    before: beforeCount,
+    deleted: deletedCount,
+    ok: deletedCount >= beforeCount
+  };
+}
+
+/**
  * 4. دالة الإغلاق السنوي وتصفية الحسابات (محمية بكلمة سر)
- *    -- نسخة محدّثة (2026):
+ *    -- نسخة محدّثة:
  *       1) تحسب المخزون الحقيقي الحالي لكل منتج وتنقله إلى current_stock.
  *       2) تجمع كريدي زبائن التجزئة على الموزع (من retail_credits).
  *       3) تنقل ديون زبائن الجملة إلى old_credit.
  *       4) تصفّر last_invoice_seq للجميع.
- *       5) تحذف invoices و invoice_operations فقط.
+ *       5) تحذف invoices و invoice_operations و retail_distributions و retail_credits
+ *          مع التحقق الفعلي من نجاح كل عملية حذف (لاكتشاف مشاكل صلاحيات RLS).
  */
 async function closeYearAndCarryOverDebt() {
    // ✅ حماية احتياطية (في حال تم استدعاء الدالة من Console)
@@ -830,24 +868,32 @@ async function closeYearAndCarryOverDebt() {
       if (stockErr) throw stockErr;
     }
 
-    // ============ 5. حذف الفواتير والعمليات ============
-    const { error: delOpsErr } = await db.from('invoice_operations').delete().neq('id', 0);
-    if (delOpsErr) throw delOpsErr;
+    // ============ 5. حذف الفواتير والعمليات مع التحقق الفعلي من نجاح الحذف ============
+    // -- هذا هو الجزء الذي تم تعزيزه: كل عملية حذف تُتحقق منها فعلياً --
+    const tablesToClear = ['invoice_operations', 'invoices', 'retail_distributions', 'retail_credits'];
+    const deletionResults = [];
 
-    const { error: delErr } = await db.from('invoices').delete().neq('id', 0);
-    if (delErr) throw delErr;
+    for (const tbl of tablesToClear) {
+      const res = await deleteAllRowsAndVerify(tbl);
+      deletionResults.push(res);
+    }
 
-        // ✅ حذف توزيعات التجزئة
-    const { error: delDistErr } = await db.from('retail_distributions').delete().neq('id', 0);
-    if (delDistErr) throw delDistErr;
+    // ملاحظة: لا نحذف customers
 
-    // ✅ حذف كريدي التجزئة
-    const { error: delCreditsErr } = await db.from('retail_credits').delete().neq('id', 0);
-    if (delCreditsErr) throw delCreditsErr;
+    // التحقق من وجود جداول لم يُحذف منها أي شيء رغم أنها لم تكن فارغة
+    const failedTables = deletionResults.filter(r => !r.ok);
 
-    // ملاحظة: لا نحذف customers ولا retail_credits ولا retail_distributions
-
-    showAlert("تم إغلاق السنة بنجاح! المخزون الحقيقي أصبح نقطة البداية للعام الجديد، ونُقلت ديون زبائن الجملة إلى بطاقاتهم، وجُمع كريدي زبائن التجزئة على الموزعين، وتم تفريغ سجل الفواتير والعمليات بالكامل.");
+    if (failedTables.length > 0) {
+      const failedNames = failedTables.map(f => `- ${f.table} (كان بها ${f.before} سطر، حُذف منها ${f.deleted} فقط)`).join('\n');
+      showAlert(
+        "⚠️ تم تنفيذ إغلاق السنة (المخزون والديون تم تحديثها بنجاح)، لكن فشل حذف البيانات من الجداول التالية:\n\n" +
+        failedNames +
+        "\n\nهذا يعني على الأرجح أن صلاحيات RLS في Supabase تمنع عمليات الحذف (DELETE) على هذه الجداول. " +
+        "يرجى الذهاب إلى Supabase → Authentication → Policies، والتأكد من وجود سياسة (Policy) من نوع DELETE تسمح بالحذف على هذه الجداول."
+      );
+    } else {
+      showAlert("تم إغلاق السنة بنجاح! المخزون الحقيقي أصبح نقطة البداية للعام الجديد، ونُقلت ديون زبائن الجملة إلى بطاقاتهم، وجُمع كريدي زبائن التجزئة على الموزعين، وتم تفريغ سجل الفواتير والعمليات بالكامل.");
+    }
 
     await preloadData();
     await loadInvoicesTable();
