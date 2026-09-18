@@ -669,6 +669,10 @@ function convertToArabicWords(num) {
  *       5) تحذف invoices و invoice_operations فقط.
  */
 async function closeYearAndCarryOverDebt() {
+   // ✅ حماية احتياطية (في حال تم استدعاء الدالة من Console)
+  if (!checkUserRole('admin')) {
+    return;
+  }
   const enteredPass = prompt("عملية حساسة: أدخل كلمة المرور لتأكيد إغلاق السنة (سيتم حذف كل الفواتير وسجل العمليات، ونقل الديون والمخزون الحالي كنقطة بداية للعام الجديد):");
 
   if (enteredPass === null) return;
