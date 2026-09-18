@@ -134,12 +134,13 @@ async function loadCustomersTable() {
         displayCredit += distributorNetCredit[c.name];
       }
 
-      rowsToShow.push({
+            rowsToShow.push({
         id: c.id,
         name: c.name,
         type: c.type,
         credit: displayCredit,
         hasInfo: c.rc || c.nif || c.nis || c.bank_name || c.bank_account || c.address,
+        createdBy: c.created_by || 'unknown',
         isAggregate: false
       });
     });
@@ -149,12 +150,13 @@ async function loadCustomersTable() {
     Object.keys(distributorNetCredit).forEach(distName => {
       const alreadyShown = rowsToShow.some(r => r.name === distName);
       if (!alreadyShown && distributorNetCredit[distName] !== 0) {
-        rowsToShow.push({
+                rowsToShow.push({
           id: null,
           name: distName,
           type: 'distributor',
           credit: distributorNetCredit[distName],
           hasInfo: false,
+          createdBy: '---',
           isAggregate: true
         });
       }
@@ -167,7 +169,7 @@ async function loadCustomersTable() {
     tbody.innerHTML = '';
 
     if (rowsToShow.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="padding: 15px; text-align: center; color: #7f8c8d;">لا يوجد زبائن مسجلون بعد</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="padding: 15px; text-align: center; color: #7f8c8d;">لا يوجد زبائن مسجلون بعد</td></tr>';
       return;
     }
 
@@ -215,8 +217,7 @@ async function loadCustomersTable() {
           </button>
         `;
       }
-      
-      tbody.innerHTML += `
+          tbody.innerHTML += `
         <tr>
           <td style="font-weight: bold;">${idx + 1}</td>
           <td style="font-weight: bold; text-align: right; padding-right: 15px;">
@@ -225,6 +226,9 @@ async function loadCustomersTable() {
           <td style="font-weight: bold; color: ${typeColor}; font-size: 12px;">
             ${typeLabel}
           </td>
+          <td style="font-weight: bold; color: #7c3aed; font-size: 12px;">
+            ${c.createdBy}
+          </td>
           <td style="font-weight: bold; color: ${creditColor}; font-size: 15px;" dir="ltr">
             ${credit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} دج
           </td>
@@ -232,7 +236,8 @@ async function loadCustomersTable() {
             ${actionsHtml}
           </td>
         </tr>
-      `;
+      `;  
+      
     });
 
   } catch (err) {
