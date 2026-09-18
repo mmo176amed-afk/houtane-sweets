@@ -46,15 +46,21 @@ async function handleLogin() {
       role: foundUser.role
     };
 
-    // تحديث شارة المستخدم في الواجهة
+        // تحديث شارة المستخدم في الواجهة
     const badge = document.getElementById('user-badge');
     if (badge) {
       badge.innerText = `${currentUser.username} (${currentUser.role})`;
     }
 
+    // إخفاء/إظهار زر "إغلاق السنة" حسب الصلاحية
+    const closeYearBtn = document.querySelector('button[onclick="closeYearAndCarryOverDebt()"]');
+    if (closeYearBtn) {
+      closeYearBtn.style.display = (currentUser.role === 'admin') ? 'inline-block' : 'none';
+    }
+
     // إظهار لوحة التحكم
     showView('view-dashboard');
-
+    
     // تحميل البيانات الأولية
     await preloadData();
 
