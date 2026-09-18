@@ -10,6 +10,15 @@
  * 6) الهدايا           → invoice_operations (operation_type = 'هدايا')
  */
 
+/**
+ * دالة مساعدة: تنسيق التاريخ من YYYY-MM-DD إلى DD/MM/YYYY
+ */
+function formatDate(dateStr) {
+  if (!dateStr) return '-';
+  const parts = String(dateStr).split('-');
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
 let currentOperationsTab = 'produced';
 let operationsProductsList = [];
 
@@ -165,7 +174,7 @@ function renderSimpleOperationsTable(operations, tabId, firstColLabel, showRecei
       tbody.innerHTML += `
         <tr>
           <td style="font-weight: bold;">${idx + 1}</td>
-          <td>${r.date}</td>
+          <td>${formatDate(r.date)}</td>
           <td style="font-weight: bold; color: #7c3aed;">${r.user}</td>
           <td style="font-weight: bold; text-align: right; padding-right: 10px;">${r.customer}</td>
           ${receiptCell}
@@ -272,7 +281,7 @@ async function loadOperationsRetail() {
     tbody.innerHTML += `
       <tr>
         <td style="font-weight: bold;">${idx + 1}</td>
-        <td>${r.dist_date || '-'}</td>
+         <td>${formatDate(r.dist_date)}</td>
         <td style="font-weight: bold; color: #7c3aed;">${r.created_by || 'unknown'}</td>
         <td style="font-weight: bold; text-align: right; padding-right: 10px;">${r.distributor_name || '-'}</td>
         ${prodCols}
