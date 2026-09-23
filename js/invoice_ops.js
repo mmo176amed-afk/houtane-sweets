@@ -407,6 +407,7 @@ async function submitCompleteInvoice() {
   const invoiceNum = document.getElementById('inv-num').value.trim();
   const invoiceDate = document.getElementById('inv-date').value;
   const grandTotal = parseCleanNumber(document.getElementById('inv-grand-total').value);
+  const totalGoodsAmount = parseCleanNumber(document.getElementById('inv-total-goods').value); // ⬅️ السطر الجديد
   const paidAmount = parseCleanNumber(document.getElementById('inv-paid-amount').value);
   const newDebt = parseCleanNumber(document.getElementById('inv-new-debt').value);
   const notes = document.getElementById('inv-notes').value.trim();
@@ -482,7 +483,7 @@ async function submitCompleteInvoice() {
     const { error: invErr } = await db.from('invoices').insert([{
       customer_name: customerName,
       invoice_number: invoiceNum,
-      invoice_amount: grandTotal,
+      invoice_amount: totalGoodsAmount,
       invoice_date: invoiceDate,
       paid_amount: paidAmount,
       debt: newDebt,
