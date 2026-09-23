@@ -111,28 +111,35 @@ function setInvoiceOperationType(opType) {
     }
   });
 
-  // ✅ إظهار أو إخفاء الحقول حسب نوع العملية
+    // ✅ إظهار أو إخفاء الحقول حسب نوع العملية
   const custWrapper = document.getElementById('inv-customer-wrapper');
   const custLabel = document.getElementById('inv-customer-label');
   const benefWrapper = document.getElementById('inv-beneficiary-wrapper');
   const beneficiaryInput = document.getElementById('inv-beneficiary-name');
+  const numWrapper = document.getElementById('inv-num-wrapper');
+  const creditWrapper = document.getElementById('inv-credit-wrapper');
+  const financialsWrapper = document.getElementById('inv-financials-wrapper');
 
+  // إخفاء كل شيء أولاً
+  if (custWrapper) custWrapper.style.display = 'none';
+  if (benefWrapper) benefWrapper.style.display = 'none';
+  if (numWrapper) numWrapper.style.display = 'none';
+  if (creditWrapper) creditWrapper.style.display = 'none';
+  if (financialsWrapper) financialsWrapper.style.display = 'none';
+
+  // ثم إظهار ما يلزم حسب النوع
   if (opType === 'وصل جديد (توزيع)') {
     if (custWrapper) custWrapper.style.display = 'block';
     if (custLabel) custLabel.innerText = 'اسم الزبون / الموزع:';
-    if (benefWrapper) benefWrapper.style.display = 'none';
+    if (numWrapper) numWrapper.style.display = 'block';
+    if (creditWrapper) creditWrapper.style.display = 'block';
+    if (financialsWrapper) financialsWrapper.style.display = 'block';
   } else if (opType === 'مسترجعة') {
     if (custWrapper) custWrapper.style.display = 'block';
     if (custLabel) custLabel.innerText = 'اسم الزبون المُرجِع:';
-    if (benefWrapper) benefWrapper.style.display = 'none';
   } else if (opType === 'هدايا') {
-    if (custWrapper) custWrapper.style.display = 'none';
     if (benefWrapper) benefWrapper.style.display = 'block';
     if (beneficiaryInput) beneficiaryInput.value = '';
-  } else {
-    // سلعة منتجة أو تالفة → لا زبون ولا مستفيد
-    if (custWrapper) custWrapper.style.display = 'none';
-    if (benefWrapper) benefWrapper.style.display = 'none';
   }
 }
 
