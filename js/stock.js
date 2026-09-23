@@ -63,6 +63,10 @@ async function loadStockTable() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
+    // إزالة أي سطر مجاميع سابق (إن وُجد) قبل إعادة البناء لتفادي التكرار
+    const oldFooter = document.getElementById('stock-tfoot');
+    if (oldFooter) oldFooter.remove();
+
     // 4. تطبيق المعادلات الحسابية
     productsCache = (prods || []).map(p => {
       const s = opsSummary[p.name] || { produced: 0, wholesaleSold: 0, wasteAndGifts: 0, returned: 0, retailSold: 0 };
@@ -87,11 +91,20 @@ async function loadStockTable() {
     });
 
     if (productsCache.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding: 15px;">لا توجد منتجات مسجلة</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13" style="text-align:center; padding: 15px;">لا توجد منتجات مسجلة</td></tr>';
       return;
     }
 
        // 5. بناء الخلايا الـ 13 المتطابقة تماماً مع ترويسة الجدول
+    // متغيرات تجميع المجاميع الإجمالية لكل عمود رقمي
+    let totalProduced = 0;
+    let totalWholesaleSold = 0;
+    let totalWasteAndGifts = 0;
+    let totalReturned = 0;
+    let totalRetailSold = 0;
+    let totalEvalDiff = 0;
+    let totalValue = 0;
+
     productsCache.forEach((p, index) => {
       const evalDiff = p.retailPrice - p.wholesalePrice;
       const realColor = p.currentStock > 0 ? '#16a085' : (p.currentStock < 0 ? '#c0392b' : '#7f8c8d');
@@ -100,6 +113,15 @@ async function loadStockTable() {
       const lowStockThreshold = 20;
       const isLowStock = p.currentStock > 0 && p.currentStock <= lowStockThreshold;
       const stockRowBg = p.currentStock <= 0 ? '#fde8e8' : (isLowStock ? '#fff3cd' : '');
+
+      // تجميع المجاميع
+      totalProduced += p.produced;
+      totalWholesaleSold += p.wholesaleSold;
+      totalWasteAndGifts += p.wasteAndGifts;
+      totalReturned += p.returned;
+      totalRetailSold += p.retailSold;
+      totalEvalDiff += evalDiff;
+      totalValue += (p.currentStock * p.wholesalePrice);
 
       tbody.innerHTML += `
         <tr style="background: ${stockRowBg};">
@@ -156,7 +178,56 @@ async function loadStockTable() {
         </tr>
       `;
     });
-    
+
+    // 6. إضافة سطر المجاميع الثابت في آخر الجدول (tfoot)
+    const table = document.getElementById('stock-table');
+    if (table) {
+      const tfoot = document.createElement('tfoot');
+      tfoot.id = 'stock-tfoot';
+      tfoot.innerHTML = `
+        <tr style="background: #1e293b; color: white; font-weight: bold; border-top: 3px solid #0f172a;">
+          <!-- 1 و2. الرقم + اسم المنتج -->
+          <td colspan="2" style="padding: 8px; text-align: center;">المجاميع</td>
+
+          <!-- 3. حالة المخزن (بدون معنى تراكمي، تُترك فارغة) -->
+          <td></td>
+
+          <!-- 4 و5. أسعار الجملة والتجزئة (بدون معنى تراكمي) -->
+          <td></td>
+          <td></td>
+
+          <!-- 6. مجموع المنتجة -->
+          <td style="color: #4ade80; padding: 8px;">${totalProduced.toLocaleString()}</td>
+
+          <!-- 7. مجموع مباعة جملة -->
+          <td style="color: #fdba74; padding: 8px;">${totalWholesaleSold.toLocaleString()}</td>
+
+          <!-- 8. مجموع هدايا+تالفة -->
+          <td style="color: #fca5a5; padding: 8px;">${totalWasteAndGifts.toLocaleString()}</td>
+
+          <!-- 9. مجموع المسترجعة -->
+          <td style="color: #7dd3fc; padding: 8px;">${totalReturned.toLocaleString()}</td>
+
+          <!-- 10. مجموع مباعة تجزئة -->
+          <td style="color: #d8b4fe; padding: 8px;">${totalRetailSold.toLocaleString()}</td>
+
+          <!-- 11. الحقيقي (بدون معنى تراكمي، تُترك فارغة) -->
+          <td></td>
+
+          <!-- 12. مجموع فارق التقييم -->
+          <td style="padding: 8px; color: ${totalEvalDiff >= 0 ? '#4ade80' : '#fca5a5'};">
+            ${totalEvalDiff.toLocaleString()} دج
+          </td>
+
+          <!-- 13. مجموع القيمة الإجمالية -->
+          <td style="padding: 8px; background: #0f172a; color: #38bdf8;">
+            ${totalValue.toLocaleString()} دج
+          </td>
+        </tr>
+      `;
+      table.appendChild(tfoot);
+    }
+
   } catch (err) {
     showAlert("حدث خطأ أثناء تحميل جدول المخزون: " + err.message);
   } finally {
