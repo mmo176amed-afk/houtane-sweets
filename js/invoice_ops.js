@@ -406,7 +406,6 @@ async function submitCompleteInvoice() {
   const customerName = document.getElementById('inv-customer-select').value;
   const invoiceNum = document.getElementById('inv-num').value.trim();
   const invoiceDate = document.getElementById('inv-date').value;
-  const grandTotal = parseCleanNumber(document.getElementById('inv-grand-total').value);
   const totalGoodsAmount = parseCleanNumber(document.getElementById('inv-total-goods').value);
   const oldDebtSnapshot = parseCleanNumber(document.getElementById('inv-old-credit-val').value);
   const paidAmount = parseCleanNumber(document.getElementById('inv-paid-amount').value);
