@@ -57,8 +57,8 @@ function openInvoiceView() {
       opt.innerText = c.name;
       custSelect.appendChild(opt);
     });
-  }
-
+   }
+  
   document.getElementById('inv-num').value = '';
   document.getElementById('inv-old-credit-val').value = formatMoneyDisplay(0);
   document.getElementById('inv-total-goods').value = formatMoneyDisplay(0);
@@ -76,6 +76,9 @@ function openInvoiceView() {
     addInvoiceItemRow();
     addInvoiceItemRow();
   }
+ setTimeout(() => {
+    setInvoiceOperationType('وصل جديد (توزيع)');
+  }, 100);
 }
 
 /**
@@ -83,14 +86,34 @@ function openInvoiceView() {
  */
 function setInvoiceOperationType(opType) {
   currentInvoiceOperationType = opType;
+  
   const buttons = document.querySelectorAll('#view-invoice-ops .btn-op');
   buttons.forEach(btn => {
-    if (btn.innerText.includes(opType.replace(/[()]/g, ''))) {
+    // إعادة تعيين كل الأزرار (إزالة التأثير البصري)
+    btn.classList.remove('active');
+    btn.style.opacity = '0.5';
+    btn.style.border = '3px solid transparent';
+    btn.style.boxShadow = 'none';
+    btn.style.transform = 'scale(1)';
+    
+    // التحقق من تطابق النص مع النوع المطلوب
+    const btnText = btn.innerText.trim();
+    const cleanOpType = opType.replace(/[()]/g, '').trim();
+    const cleanBtnText = btnText.replace(/[()]/g, '').trim();
+    
+    // مطابقة مرنة (تتجاهل الأقواس والمسافات الزائدة)
+    if (btnText === opType || cleanBtnText === cleanOpType || 
+        btnText.includes(opType) || opType.includes(btnText)) {
       btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
+      btn.style.opacity = '1';
+      btn.style.border = '3px solid #fbbf24';
+      btn.style.boxShadow = '0 0 15px rgba(251, 191, 36, 0.7)';
+      btn.style.transform = 'scale(1.05)';
     }
   });
+  
+  // إشعار في Console للتأكد من تحديد النوع
+  console.log('✅ نوع العملية المحدد:', opType);
 }
 
 /**
