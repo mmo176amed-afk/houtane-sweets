@@ -395,12 +395,19 @@
           <label>التاريخ:</label>
           <input type="date" id="inv-date" class="form-control">
         </div>
-        <div>
-          <label>اسم الزبون / الموزع:</label>
-          <select id="inv-customer-select" class="form-control" onchange="onInvoiceCustomerChanged(this.value)">
-            <option value="">-- اختر الزبون --</option>
-          </select>
-        </div>
+        <!-- حقل الزبون (يظهر فقط لبعض العمليات) -->
+<div id="inv-customer-wrapper">
+  <label id="inv-customer-label">اسم الزبون / الموزع:</label>
+  <select id="inv-customer-select" class="form-control" onchange="onInvoiceCustomerChanged(this.value)">
+    <option value="">-- اختر الزبون --</option>
+  </select>
+</div>
+
+<!-- حقل المستفيد من الهدية (يظهر فقط عند اختيار "هدايا") -->
+<div id="inv-beneficiary-wrapper" style="display: none;">
+  <label>اسم المستفيد من الهدية:</label>
+  <input type="text" id="inv-beneficiary-name" class="form-control" placeholder="أدخل اسم المستفيد...">
+</div>
         <div>
           <label>رقم الوصل (تلقائي):</label>
           <input type="text" id="inv-num" class="form-control" placeholder="رقم الوصل">
