@@ -447,7 +447,33 @@ function cancelInvoiceEditMode() {
  *           المخزون في products، بدل تجاهل الأخطاء بصمت كما كان سابقاً.
  */
 async function submitCompleteInvoice() {
-  const customerName = document.getElementById('inv-customer-select').value;
+    // ✅ تحديد اسم الجهة حسب نوع العملية
+  const customerFromDropdown = document.getElementById('inv-customer-select').value;
+  const beneficiaryName = (document.getElementById('inv-beneficiary-name')?.value || '').trim();
+  
+  let customerName = '';
+  
+  if (currentInvoiceOperationType === 'وصل جديد (توزيع)') {
+      customerName = customerFromDropdown;
+  } else if (currentInvoiceOperationType === 'مسترجعة') {
+    if (!customerFromDropdown) {
+      showAlert("يرجى اختيار اسم الزبون المُرجِع!");
+      return;
+    }
+    customerName = customerFromDropdown;
+  } else if (currentInvoiceOperationType === 'هدايا') {
+    if (!beneficiaryName) {
+      showAlert("يرجى كتابة اسم المستفيد من الهدية!");
+      return;
+    }
+    customerName = beneficiaryName;
+  } else if (currentInvoiceOperationType === 'سلعة منتجة') {
+    customerName = 'إنتاج داخلي';
+  } else if (currentInvoiceOperationType === 'تالفة') {
+    customerName = 'تلف';
+  } else {
+    customerName = customerFromDropdown || 'غير محدد';
+  }
   const invoiceNum = document.getElementById('inv-num').value.trim();
   const invoiceDate = document.getElementById('inv-date').value;
   const totalGoodsAmount = parseCleanNumber(document.getElementById('inv-total-goods').value);
