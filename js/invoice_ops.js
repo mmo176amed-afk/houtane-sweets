@@ -137,13 +137,23 @@ function setInvoiceOperationType(opType) {
   } else if (opType === 'مسترجعة') {
     if (custWrapper) custWrapper.style.display = 'block';
     if (custLabel) custLabel.innerText = 'اسم الزبون المُرجِع:';
-  } else if (opType === 'هدايا') {
+    } else if (opType === 'هدايا') {
     if (benefWrapper) benefWrapper.style.display = 'block';
     if (beneficiaryInput) beneficiaryInput.value = '';
   }
+
+  // ✅ إظهار/إخفاء الأزرار حسب نوع العملية
+  const financialBtnWrapper = document.getElementById('btn-submit-financial-wrapper');
+  const operationBtnWrapper = document.getElementById('btn-submit-operation-wrapper');
+
+  if (opType === 'وصل جديد (توزيع)') {
+    if (financialBtnWrapper) financialBtnWrapper.style.display = 'block';
+    if (operationBtnWrapper) operationBtnWrapper.style.display = 'none';
+  } else {
+    if (financialBtnWrapper) financialBtnWrapper.style.display = 'none';
+    if (operationBtnWrapper) operationBtnWrapper.style.display = 'block';
+  }
 }
-
-
 /**
  * 3. منع تكرار المنتجات في القوائم المنسدلة
  */
