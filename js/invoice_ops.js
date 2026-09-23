@@ -146,12 +146,23 @@ function setInvoiceOperationType(opType) {
   const financialBtnWrapper = document.getElementById('btn-submit-financial-wrapper');
   const operationBtnWrapper = document.getElementById('btn-submit-operation-wrapper');
 
-  if (opType === 'وصل جديد (توزيع)') {
+    if (opType === 'وصل جديد (توزيع)') {
     if (financialBtnWrapper) financialBtnWrapper.style.display = 'block';
     if (operationBtnWrapper) operationBtnWrapper.style.display = 'none';
   } else {
     if (financialBtnWrapper) financialBtnWrapper.style.display = 'none';
     if (operationBtnWrapper) operationBtnWrapper.style.display = 'block';
+  }
+
+  // ✅ توليد رقم وصل تلقائي للعمليات غير المالية
+  const numInput = document.getElementById('inv-num');
+  if (numInput && opType !== 'وصل جديد (توزيع)' && opType !== 'مسترجعة') {
+    const prefix = {
+      'سلعة منتجة': 'PROD',
+      'تالفة': 'WASTE',
+      'هدايا': 'GIFT'
+    }[opType] || 'OP';
+    numInput.value = `${prefix}-${Date.now()}`;
   }
 }
 /**
