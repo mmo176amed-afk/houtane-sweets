@@ -82,7 +82,7 @@ async function printOrderReceipt(invoiceNum, customerName) {
 
     // جلب الكريدي القديم من customersCache
     const customer = customersCache.find(c => c.name === invData.customer_name);
-    const oldCredit = customer ? (Number(customer.oldCredit) || 0) : 0;
+    const oldCredit = Number(invData.old_credit) || 0;
 
     // جلب تفاصيل المنتجات
     const { data: items, error: itemsErr } = await db
