@@ -408,14 +408,14 @@
   <label>اسم المستفيد من الهدية:</label>
   <input type="text" id="inv-beneficiary-name" class="form-control" placeholder="أدخل اسم المستفيد...">
 </div>
-        <div>
-          <label>رقم الوصل (تلقائي):</label>
-          <input type="text" id="inv-num" class="form-control" placeholder="رقم الوصل">
-        </div>
-        <div>
-          <label>الكريدي القديم (دج):</label>
-          <input type="text" id="inv-old-credit-val" class="form-control" dir="ltr" readonly style="background: #edf2f7; font-weight: bold; color: var(--danger); text-align: center;" value="0.00">
-        </div>
+        <div id="inv-num-wrapper">
+  <label>رقم الوصل (تلقائي):</label>
+  <input type="text" id="inv-num" class="form-control" placeholder="رقم الوصل">
+</div>
+<div id="inv-credit-wrapper">
+  <label>الكريدي القديم (دج):</label>
+  <input type="text" id="inv-old-credit-val" class="form-control" dir="ltr" readonly style="background: #edf2f7; font-weight: bold; color: var(--danger); text-align: center;" value="0.00">
+</div>
       </div>
 
       <!-- أزرار نوع العملية على السلع -->
@@ -451,7 +451,7 @@
         <h4 style="margin-bottom: 12px; color: var(--primary);">
           <i class="fa-solid fa-calculator"></i> ملخص الحساب التلقائي للوصل
         </h4>
-
+         <div id="inv-financials-wrapper">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end;">
           
           <!-- 1. قيمة المنتجات الموجودة في الوصل (تلقائي) -->
@@ -496,7 +496,7 @@
               <i class="fa-solid fa-floppy-disk"></i> تسجيل وتأكيد الوصل
             </button>
           </div>
-
+         </div>
         </div>
       </div>
 
