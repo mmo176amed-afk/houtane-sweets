@@ -12,7 +12,7 @@ async function loadInvoicesTable() {
   showLoader(true);
 
   try {
-    const { data, error } = await db
+    let { data, error } = await db
       .from('invoices')
       .select('*')
       .order('id', { ascending: true });
@@ -23,6 +23,11 @@ async function loadInvoicesTable() {
     if (!tbody) return;
 
     tbody.innerHTML = '';
+        // ✅ تصفية: عرض فواتير الجملة فقط (أرقام الوصل التي تحتوي على أرقام فقط)
+    const filteredData = (data || []).filter(inv => 
+      inv.invoice_number && /^\d+$/.test(inv.invoice_number)
+    );
+    data = filteredData;
     if (!data || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding: 15px; color: #7f8c8d;">لا توجد فواتير مسجلة حتى الآن</td></tr>';
     } else {
