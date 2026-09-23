@@ -290,8 +290,8 @@ function calculateInvoiceFinancials() {
   const adjustment = parseCleanNumber(document.getElementById('inv-adjustment-amount')?.value);
   const paid = parseCleanNumber(document.getElementById('inv-paid-amount')?.value);
 
-  const grandTotal = totalGoods + oldDebt + adjustment;
-  const newDebt = grandTotal - paid;
+  const grandTotal = totalGoods + adjustment;
+  const newDebt = grandTotal + oldDebt - paid;
 
   const totalGoodsEl = document.getElementById('inv-total-goods');
   const grandTotalEl = document.getElementById('inv-grand-total');
@@ -407,7 +407,8 @@ async function submitCompleteInvoice() {
   const invoiceNum = document.getElementById('inv-num').value.trim();
   const invoiceDate = document.getElementById('inv-date').value;
   const grandTotal = parseCleanNumber(document.getElementById('inv-grand-total').value);
-  const totalGoodsAmount = parseCleanNumber(document.getElementById('inv-total-goods').value); // ⬅️ السطر الجديد
+  const totalGoodsAmount = parseCleanNumber(document.getElementById('inv-total-goods').value);
+  const oldDebtSnapshot = parseCleanNumber(document.getElementById('inv-old-credit-val').value);
   const paidAmount = parseCleanNumber(document.getElementById('inv-paid-amount').value);
   const newDebt = parseCleanNumber(document.getElementById('inv-new-debt').value);
   const notes = document.getElementById('inv-notes').value.trim();
@@ -484,6 +485,7 @@ async function submitCompleteInvoice() {
       customer_name: customerName,
       invoice_number: invoiceNum,
       invoice_amount: totalGoodsAmount,
+      old_credit: oldDebtSnapshot, 
       invoice_date: invoiceDate,
       paid_amount: paidAmount,
       debt: newDebt,
