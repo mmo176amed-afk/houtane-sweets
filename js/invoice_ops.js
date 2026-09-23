@@ -89,19 +89,18 @@ function setInvoiceOperationType(opType) {
   
   const buttons = document.querySelectorAll('#view-invoice-ops .btn-op');
   buttons.forEach(btn => {
-    // إعادة تعيين كل الأزرار (إزالة التأثير البصري)
+    // إعادة تعيين كل الأزرار
     btn.classList.remove('active');
     btn.style.opacity = '0.5';
     btn.style.border = '3px solid transparent';
     btn.style.boxShadow = 'none';
     btn.style.transform = 'scale(1)';
     
-    // التحقق من تطابق النص مع النوع المطلوب
+    // مطابقة النص مع النوع المطلوب
     const btnText = btn.innerText.trim();
     const cleanOpType = opType.replace(/[()]/g, '').trim();
     const cleanBtnText = btnText.replace(/[()]/g, '').trim();
     
-    // مطابقة مرنة (تتجاهل الأقواس والمسافات الزائدة)
     if (btnText === opType || cleanBtnText === cleanOpType || 
         btnText.includes(opType) || opType.includes(btnText)) {
       btn.classList.add('active');
@@ -111,10 +110,32 @@ function setInvoiceOperationType(opType) {
       btn.style.transform = 'scale(1.05)';
     }
   });
-  
-  // إشعار في Console للتأكد من تحديد النوع
-  console.log('✅ نوع العملية المحدد:', opType);
+
+  // ✅ إظهار أو إخفاء الحقول حسب نوع العملية
+  const custWrapper = document.getElementById('inv-customer-wrapper');
+  const custLabel = document.getElementById('inv-customer-label');
+  const benefWrapper = document.getElementById('inv-beneficiary-wrapper');
+  const beneficiaryInput = document.getElementById('inv-beneficiary-name');
+
+  if (opType === 'وصل جديد (توزيع)') {
+    if (custWrapper) custWrapper.style.display = 'block';
+    if (custLabel) custLabel.innerText = 'اسم الزبون / الموزع:';
+    if (benefWrapper) benefWrapper.style.display = 'none';
+  } else if (opType === 'مسترجعة') {
+    if (custWrapper) custWrapper.style.display = 'block';
+    if (custLabel) custLabel.innerText = 'اسم الزبون المُرجِع:';
+    if (benefWrapper) benefWrapper.style.display = 'none';
+  } else if (opType === 'هدايا') {
+    if (custWrapper) custWrapper.style.display = 'none';
+    if (benefWrapper) benefWrapper.style.display = 'block';
+    if (beneficiaryInput) beneficiaryInput.value = '';
+  } else {
+    // سلعة منتجة أو تالفة → لا زبون ولا مستفيد
+    if (custWrapper) custWrapper.style.display = 'none';
+    if (benefWrapper) benefWrapper.style.display = 'none';
+  }
 }
+
 
 /**
  * 3. منع تكرار المنتجات في القوائم المنسدلة
