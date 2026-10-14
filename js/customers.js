@@ -239,7 +239,32 @@ async function loadCustomersTable() {
       `;  
       
     });
+    // ✅ حساب المجاميع
+    let totalCredit = 0;
+    let totalPositiveCredit = 0;
+    let totalNegativeCredit = 0;
 
+    rowsToShow.forEach(c => {
+      totalCredit += c.credit;
+      if (c.credit > 0) totalPositiveCredit += c.credit;
+      if (c.credit < 0) totalNegativeCredit += c.credit;
+    });
+
+    // ✅ إظهار سطر المجاميع في tfoot
+    const tfoot = document.getElementById('customers-tfoot');
+    if (tfoot) {
+      tfoot.innerHTML = `
+        <tr style="background: #1e293b; color: white; font-weight: bold; border-top: 3px solid #fbbf24;">
+          <td colspan="4" style="padding: 10px; text-align: center; font-size: 14px; color: #fbbf24;">
+            📊 إجمالي الكريدي
+          </td>
+          <td style="padding: 10px; text-align: center; font-size: 15px; color: ${totalCredit >= 0 ? '#4ade80' : '#fca5a5'};">
+            ${totalCredit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} دج
+          </td>
+          <td style="padding: 8px; background: #0f172a;"></td>
+        </tr>
+      `;
+    }
   } catch (err) {
     showAlert("حدث خطأ أثناء تحميل قائمة الزبائن: " + err.message);
     console.error(err);
